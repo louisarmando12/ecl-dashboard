@@ -1,0 +1,77 @@
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Player {
+  id                 String   @id @default(cuid())
+  name               String   @unique
+  country            String
+  registrationStatus String   @default("ACTIVE") // ACTIVE, CANCELLED
+  isActive           Boolean  @default(true) // Whether they are playing in the CURRENT tournament
+  rank            Int      @default(0)
+  win             Int      @default(0)
+  lose            Int      @default(0)
+  goalsScored     Int      @default(0) // GS
+  goalsConceded   Int      @default(0) // GC
+  goalDifference  Int      @default(0) // GD
+  points          Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  matchesAsA      Match[]  @relation("PlayerA")
+  matchesAsB      Match[]  @relation("PlayerB")
+  matchesWon      Match[]  @relation("Winner")
+  matchesLost     Match[]  @relation("Loser")
+}
+
+model Match {
+  id          String   @id @default(cuid())
+  matchNumber String   // e.g. "ECL-01-01"
+  bracket     Int      // e.g. 1
+  round       String   // e.g. "Round 1"
+  tournamentId String  @default("1")
+  
+  playerAId      String?
+  playerA        Player?  @relation("PlayerA", fields: [playerAId], references: [id])
+  playerACountry String?
+  scoreA         Int?
+  
+  playerBId      String?
+  playerB        Player?  @relation("PlayerB", fields: [playerBId], references: [id])
+  playerBCountry String?
+  scoreB         Int?
+  
+  winnerId    String?
+  winner      Player?  @relation("Winner", fields: [winnerId], references: [id])
+  
+  loserId     String?
+  loser       Player?  @relation("Loser", fields: [loserId], references: [id])
+  
+  status      String   @default("UPCOMING") // UPCOMING, LIVE, COMPLETED
+  isArchived  Boolean  @default(false)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SystemSettings {
+  id                        String   @id @default("1")
+  tournamentStatus          String   @default("UPCOMING") // UPCOMING, LIVE, COMPLETED
+  registrationOpen          Boolean  @default(true)
+  currentTournamentId       String   @default("1")
+  availableCountries        String   @default("[]") // JSON array of available countries
+  defaultAvailableCountries String   @default("[]") // JSON array of initial countries to restore on archive
+  logoUrls                  String   @default("{}") // JSON map of country slug to Blob URL
+  
+  // New fields for Drawing state
+  isDrawingLive             Boolean  @default(false)
+  currentDrawingPlayerId    String?
+  currentQuote              String   @default("Gua pikir big four big four itu jago. Undah gua voor main euro truck masih aja culun. Saran gua mah belanjar lagi dah")
+  updatedAt                 DateTime @updatedAt
+}

@@ -1,0 +1,55 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-dark: #38017f;
+  --color-brand-light: #460c9d;
+  --color-brand-neon: #c9f339;
+  --color-brand-neon-glow: rgba(201, 243, 57, 0.4);
+  --color-brand-orange: #ff6b00;
+  --color-brand-white: #ffffff;
+}
+
+:root {
+  --background: var(--color-brand-dark);
+  --foreground: var(--color-brand-white);
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', sans-serif; /* We'll use a Google font in layout */
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+}
+
+/* Base Neon Effects */
+.neon-border {
+  border: 2px solid var(--color-brand-neon);
+  box-shadow: 0 0 10px var(--color-brand-neon-glow), inset 0 0 10px var(--color-brand-neon-glow);
+}
+
+.neon-text {
+  color: var(--color-brand-neon);
+  text-shadow: 0 0 10px var(--color-brand-neon-glow);
+}
+
+.neon-hover:hover {
+  border-color: var(--color-brand-neon);
+  box-shadow: 0 0 15px var(--color-brand-neon-glow), inset 0 0 10px var(--color-brand-neon-glow);
+  color: var(--color-brand-neon);
+}
+
+/* Sharp geometric shapes */
+.sharp-clip {
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+
+.sharp-clip-reverse {
+  clip-path: polygon(0 0, calc(100% - 10px) 0, 100% 10px, 100% 100%, 10px 100%, 0 calc(100% - 10px));
+}
+
+/* Gradient Backgrounds */
+.bg-gradient-esports {
+  background: linear-gradient(135deg, var(--color-brand-dark) 0%, var(--color-brand-light) 100%);
+}
