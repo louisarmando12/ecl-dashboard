@@ -40,11 +40,12 @@ export default function LiveDrawing() {
           startRouletteAnimation(state.availableTeams && state.availableTeams.length > 0 ? state.availableTeams : TEAMS);
         } else if (!state.isDrawingLive && isDrawing) {
           if (state.player && state.player.country !== "TBD") {
+            const currentPlayer = state.player;
             // Use functional state updates to avoid stale closure issues
             setShowResult((prev) => {
               if (!prev) {
-                setDisplayTeam(state.player.country);
-                setPlayer(state.player);
+                setDisplayTeam(currentPlayer.country);
+                setPlayer(currentPlayer);
                 
                 resultTimeoutRef.current = setTimeout(() => {
                   setIsDrawing(false);
