@@ -6,10 +6,11 @@ export const dynamic = 'force-dynamic';
 
 export default async function Home() {
   // Fetch System Settings
-  let systemSettings = await prisma.systemSettings.findFirst();
-  if (!systemSettings) {
-    systemSettings = await prisma.systemSettings.create({ data: {} });
-  }
+  const systemSettings = await prisma.systemSettings.upsert({
+    where: { id: "1" },
+    update: {},
+    create: { id: "1" },
+  });
 
   // Fetch Players (Leaderboard)
   const leaderboard = await getLeaderboard();
