@@ -303,12 +303,19 @@ export default function AdminPanel({ settings, players, matches }: any) {
               </div>
 
               {/* Step 3: Live */}
-              <div className={`flex flex-col p-5 border sharp-clip transition-all duration-300 ${matches.length > 0 && settings?.tournamentStatus === "LIVE" ? 'border-brand-neon bg-brand-neon/10 shadow-[0_0_15px_rgba(176,251,11,0.2)]' : 'border-gray-800 bg-black/40 opacity-50'}`}>
+              <div className={`flex flex-col p-5 border sharp-clip transition-all duration-300 ${matches.length > 0 && (settings?.tournamentStatus === "LIVE" || settings?.tournamentStatus === "UPCOMING") ? 'border-brand-neon bg-brand-neon/10 shadow-[0_0_15px_rgba(176,251,11,0.2)]' : 'border-gray-800 bg-black/40 opacity-50'}`}>
                 <div className="flex justify-between items-start mb-4">
                   <h3 className="font-black text-lg uppercase tracking-wide">3. Live Match</h3>
                   {matches.length > 0 && settings?.tournamentStatus === "LIVE" && <span className="relative flex h-3 w-3"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-neon opacity-75"></span><span className="relative inline-flex rounded-full h-3 w-3 bg-brand-neon"></span></span>}
                 </div>
                 <p className="text-xs text-gray-400 flex-grow mb-6">Input scores below as the tournament progresses.</p>
+                {matches.length > 0 && settings?.tournamentStatus === "UPCOMING" && (
+                  <button onClick={async () => {
+                    await setTournamentStatus("LIVE");
+                  }} className="w-full bg-brand-neon hover:bg-white text-brand-dark font-black text-sm px-4 py-3 uppercase tracking-wider sharp-clip transition-colors">
+                    Start Tournament
+                  </button>
+                )}
                 {matches.length > 0 && settings?.tournamentStatus === "LIVE" && (
                   <button onClick={async () => {
                     if(confirm("Are you sure? This will mark the tournament as FINISHED.")) {

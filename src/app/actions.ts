@@ -206,6 +206,11 @@ export async function generateBracket() {
     roundNum++;
   }
 
+  await prisma.systemSettings.update({
+    where: { id: settings.id },
+    data: { tournamentStatus: "LIVE" }
+  });
+
   revalidatePath("/admin");
   revalidatePath("/");
 }
