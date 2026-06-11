@@ -2,24 +2,36 @@
 
 import { useState } from "react";
 import { registerPlayer } from "@/app/actions";
-import { Zap } from "lucide-react";
+import { Zap, AlertTriangle } from "lucide-react";
 
 export default function LandingPage({ settings, leaderboard }: { settings: any, leaderboard?: any[] }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [shouldShake, setShouldShake] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsSubmitting(true);
+    setError(null);
     const formData = new FormData(e.currentTarget);
     const result = await registerPlayer(formData);
     setIsSubmitting(false);
     
     if (result && result.error) {
-      alert(result.error);
+      setError(result.error);
+      setShouldShake(true);
+      setTimeout(() => setShouldShake(false), 400);
     } else {
+      setError(null);
       setIsModalOpen(false);
     }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
+    setError(null);
+    setShouldShake(false);
   };
 
   return (
@@ -100,7 +112,7 @@ export default function LandingPage({ settings, leaderboard }: { settings: any, 
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-brand-dark neon-border sharp-clip p-8 max-w-md w-full relative">
             <button 
-              onClick={() => setIsModalOpen(false)}
+              onClick={handleCloseModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-white"
             >
               ✕
@@ -108,14 +120,27 @@ export default function LandingPage({ settings, leaderboard }: { settings: any, 
             <h2 className="text-3xl font-black neon-text uppercase mb-6">Join The League</h2>
             
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div>
+              <div className={shouldShake ? "animate-shake" : ""}>
                 <label className="block text-sm font-bold uppercase text-gray-300 mb-2">Nama Pemain</label>
                 <input 
                   name="name"
                   required
-                  className="w-full bg-brand-light/30 border border-brand-neon/30 p-3 rounded-none text-white focus:outline-none focus:border-brand-neon focus:ring-1 focus:ring-brand-neon transition-all"
+                  onChange={() => {
+                    if (error) setError(null);
+                  }}
+                  className={`w-full bg-brand-light/30 border p-3 rounded-none text-white focus:outline-none transition-all ${
+                    error 
+                      ? "border-red-500/80 focus:border-red-500 focus:ring-1 focus:ring-red-500 shadow-[0_0_10px_rgba(239,68,68,0.2)]" 
+                      : "border-brand-neon/30 focus:border-brand-neon focus:ring-1 focus:ring-brand-neon"
+                  }`}
                   placeholder="e.g. Reyhan - El Dodo"
                 />
+                {error && (
+                  <div className="text-red-400 text-xs font-bold mt-2.5 flex items-center space-x-1.5 animate-in fade-in slide-in-from-top-1 duration-200">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-red-400" />
+                    <span>{error}</span>
+                  </div>
+                )}
               </div>
               <button 
                 type="submit"
@@ -133,6 +158,14 @@ export default function LandingPage({ settings, leaderboard }: { settings: any, 
         @keyframes marquee {
           0% { transform: translateX(0); }
           100% { transform: translateX(-50%); }
+        }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-6px); }
+          75% { transform: translateX(6px); }
+        }
+        .animate-shake {
+          animation: shake 0.15s ease-in-out 0s 2;
         }
       `}</style>
     </div>

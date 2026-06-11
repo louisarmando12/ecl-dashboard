@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { toggleRegistration, generateBracket, updateMatchScore, setTournamentStatus, archiveTournament, updateAvailableCountries, startDrawing, finishDrawing, forceResetDrawing } from "@/app/actions";
+import { toggleRegistration, generateBracket, updateMatchScore, setTournamentStatus, archiveTournament, updateAvailableCountries, startDrawing, finishDrawing, forceResetDrawing, resetDatabase, deletePlayer, addPlayerManually, updatePlayer, logoutAdmin } from "@/app/actions";
 
 // Helper to convert country name to 2-letter ISO code for flagcdn
 const getCountryCode = (countryName: string) => {
@@ -10,7 +10,7 @@ const getCountryCode = (countryName: string) => {
 };
 
 export default function AdminPanel({ settings, players, matches }: any) {
-  const [activeTab, setActiveTab] = useState<"GENERAL" | "DRAWING">("GENERAL");
+  const [activeTab, setActiveTab] = useState<"GENERAL" | "DRAWING" | "DATABASE">("GENERAL");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [countriesInput, setCountriesInput] = useState(() => {
@@ -108,6 +108,114 @@ export default function AdminPanel({ settings, players, matches }: any) {
     }, 5000); // 5 seconds of animation time
   };
 
+  const handleResetAllData = async () => {
+    if (confirm("⚠️ APABILA ANDA YAKIN? Tindakan ini akan menghapus SELURUH data pemain, pertandingan, dan gacha secara permanen!")) {
+      const confirmTwo = confirm("⚠️ KONFIRMASI KEDUA: Apakah Anda benar-benar yakin ingin memulai liga dari awal?");
+      if (confirmTwo) {
+        await resetDatabase();
+        alert("Database berhasil di-reset ke kondisi awal!");
+      }
+    }
+  };
+
+  const [newPlayerName, setNewPlayerName] = useState("");
+  const [newPlayerWin, setNewPlayerWin] = useState(0);
+  const [newPlayerLose, setNewPlayerLose] = useState(0);
+  const [newPlayerGS, setNewPlayerGS] = useState(0);
+  const [newPlayerGC, setNewPlayerGC] = useState(0);
+  const [newPlayerPoints, setNewPlayerPoints] = useState(0);
+
+  const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [editingWin, setEditingWin] = useState(0);
+  const [editingLose, setEditingLose] = useState(0);
+  const [editingGS, setEditingGS] = useState(0);
+  const [editingGC, setEditingGC] = useState(0);
+  const [editingPoints, setEditingPoints] = useState(0);
+
+  const [dbError, setDbError] = useState<string | null>(null);
+  const [dbSuccess, setDbSuccess] = useState<string | null>(null);
+
+  const handleAddPlayer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setDbError(null);
+    setDbSuccess(null);
+    
+    if (!newPlayerName.trim()) {
+      setDbError("Nama pemain wajib diisi.");
+      return;
+    }
+
+    const res = await addPlayerManually(
+      newPlayerName, 
+      Number(newPlayerWin), 
+      Number(newPlayerLose), 
+      Number(newPlayerGS), 
+      Number(newPlayerGC), 
+      Number(newPlayerPoints)
+    );
+
+    if (res && res.error) {
+      setDbError(res.error);
+    } else {
+      setDbSuccess(`Pemain "${newPlayerName}" berhasil ditambahkan!`);
+      setNewPlayerName("");
+      setNewPlayerWin(0);
+      setNewPlayerLose(0);
+      setNewPlayerGS(0);
+      setNewPlayerGC(0);
+      setNewPlayerPoints(0);
+    }
+  };
+
+  const handleDeletePlayer = async (id: string, name: string) => {
+    if (confirm(`Apakah Anda yakin ingin menghapus pemain "${name}"? Ini juga akan menghapus pertandingan yang melibatkan pemain tersebut!`)) {
+      await deletePlayer(id);
+      setDbSuccess(`Pemain "${name}" berhasil dihapus.`);
+    }
+  };
+
+  const handleStartEdit = (player: any) => {
+    setEditingPlayerId(player.id);
+    setEditingName(player.name);
+    setEditingWin(player.win || 0);
+    setEditingLose(player.lose || 0);
+    setEditingGS(player.goalsScored || 0);
+    setEditingGC(player.goalsConceded || 0);
+    setEditingPoints(player.points || 0);
+    setDbError(null);
+    setDbSuccess(null);
+  };
+
+  const handleSaveEdit = async (id: string) => {
+    if (!editingName.trim()) {
+      setDbError("Nama pemain tidak boleh kosong.");
+      return;
+    }
+
+    const res = await updatePlayer(
+      id, 
+      editingName, 
+      Number(editingWin), 
+      Number(editingLose), 
+      Number(editingGS), 
+      Number(editingGC), 
+      Number(editingPoints)
+    );
+
+    if (res && res.error) {
+      setDbError(res.error);
+    } else {
+      setDbSuccess("Data pemain berhasil diperbarui!");
+      setEditingPlayerId(null);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingPlayerId(null);
+    setDbError(null);
+  };
+
   const tbdPlayers = players.filter((p: any) => p.country === "TBD");
 
   return (
@@ -128,6 +236,22 @@ export default function AdminPanel({ settings, players, matches }: any) {
             className={`px-6 py-3 font-bold uppercase transition-colors ${activeTab === "DRAWING" ? "bg-brand-neon text-brand-dark" : "text-gray-400 hover:text-white"}`}
           >
             Team Drawing
+          </button>
+          <button 
+            onClick={() => setActiveTab("DATABASE")}
+            className={`px-6 py-3 font-bold uppercase transition-colors ${activeTab === "DATABASE" ? "bg-brand-neon text-brand-dark" : "text-gray-400 hover:text-white"}`}
+          >
+            Database
+          </button>
+          <button 
+            onClick={async () => {
+              if (confirm("Apakah Anda yakin ingin keluar dari dashboard admin?")) {
+                await logoutAdmin();
+              }
+            }}
+            className="px-6 py-3 font-bold uppercase text-red-500 hover:text-red-400 transition-colors border-l border-gray-700 ml-4 cursor-pointer"
+          >
+            Log Out
           </button>
         </div>
       </div>
@@ -379,6 +503,20 @@ export default function AdminPanel({ settings, players, matches }: any) {
               )}
             </div>
           </div>
+
+          {/* Danger Zone */}
+          <div className="bg-red-950/20 border border-red-500/30 p-6 sharp-clip space-y-4">
+            <h2 className="text-xl font-bold uppercase text-red-500 tracking-wider">Danger Zone</h2>
+            <p className="text-xs text-gray-400">
+              Perhatian: Tindakan ini akan menghapus seluruh data pemain, pertandingan, dan menyetel ulang pengaturan liga ke awal. Data yang terhapus tidak dapat dikembalikan.
+            </p>
+            <button 
+              onClick={handleResetAllData}
+              className="bg-red-600 hover:bg-red-500 text-white font-bold text-sm px-6 py-3 uppercase tracking-wider sharp-clip transition-colors cursor-pointer"
+            >
+              Reset Seluruh Database
+            </button>
+          </div>
         </div>
       )}
 
@@ -475,6 +613,273 @@ export default function AdminPanel({ settings, players, matches }: any) {
                     </button>
                   </div>
                 ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === "DATABASE" && (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+          {/* Notifications */}
+          {dbError && (
+            <div className="bg-red-500/10 border border-red-500/50 text-red-200 p-4 sharp-clip flex items-center space-x-2">
+              <span>⚠️</span>
+              <span className="font-bold text-sm">{dbError}</span>
+            </div>
+          )}
+          {dbSuccess && (
+            <div className="bg-green-500/10 border border-green-500/50 text-green-200 p-4 sharp-clip flex items-center space-x-2">
+              <span>✅</span>
+              <span className="font-bold text-sm">{dbSuccess}</span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Left: Input Form */}
+            <div className="bg-brand-light/10 p-6 neon-border sharp-clip space-y-4 h-fit">
+              <h2 className="text-xl font-bold uppercase text-brand-neon">Tambah Pemain Manual</h2>
+              <form onSubmit={handleAddPlayer} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Nama Pemain</label>
+                  <input 
+                    type="text" 
+                    value={newPlayerName}
+                    onChange={(e) => setNewPlayerName(e.target.value)}
+                    className="w-full bg-black/40 border border-brand-neon/30 text-white p-3 focus:outline-none focus:border-brand-neon focus:ring-1 focus:ring-brand-neon transition-all"
+                    placeholder="Contoh: Reyhan - El Dodo"
+                  />
+                </div>
+                
+                <div className="border-t border-brand-neon/25 pt-4 my-2">
+                  <h3 className="text-sm font-bold uppercase text-brand-neon mb-3">Inject Leaderboard Stats</h3>
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Win (W)</label>
+                      <input 
+                        type="number" 
+                        value={newPlayerWin}
+                        onChange={(e) => setNewPlayerWin(Number(e.target.value))}
+                        className="w-full bg-black/40 border border-brand-neon/30 text-white p-2 text-sm focus:outline-none focus:border-brand-neon"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Lose (L)</label>
+                      <input 
+                        type="number" 
+                        value={newPlayerLose}
+                        onChange={(e) => setNewPlayerLose(Number(e.target.value))}
+                        className="w-full bg-black/40 border border-brand-neon/30 text-white p-2 text-sm focus:outline-none focus:border-brand-neon"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Goals Scored (GS)</label>
+                      <input 
+                        type="number" 
+                        value={newPlayerGS}
+                        onChange={(e) => setNewPlayerGS(Number(e.target.value))}
+                        className="w-full bg-black/40 border border-brand-neon/30 text-white p-2 text-sm focus:outline-none focus:border-brand-neon"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Goals Conceded (GC)</label>
+                      <input 
+                        type="number" 
+                        value={newPlayerGC}
+                        onChange={(e) => setNewPlayerGC(Number(e.target.value))}
+                        className="w-full bg-black/40 border border-brand-neon/30 text-white p-2 text-sm focus:outline-none focus:border-brand-neon"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3">
+                    <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Points (PTS)</label>
+                    <input 
+                      type="number" 
+                      value={newPlayerPoints}
+                      onChange={(e) => setNewPlayerPoints(Number(e.target.value))}
+                      className="w-full bg-black/40 border border-brand-neon/30 text-white p-2 text-sm focus:outline-none focus:border-brand-neon"
+                    />
+                  </div>
+                </div>
+
+                <button 
+                  type="submit"
+                  className="w-full bg-brand-neon text-brand-dark py-3 font-bold uppercase hover:bg-white transition-colors sharp-clip cursor-pointer flex items-center justify-center space-x-2"
+                >
+                  <span>Tambah Pemain</span>
+                </button>
+              </form>
+            </div>
+
+            {/* Right: Players Table */}
+            <div className="bg-brand-light/10 p-6 neon-border sharp-clip space-y-4 lg:col-span-2">
+              <h2 className="text-xl font-bold uppercase text-brand-neon font-black">Daftar Pemain & Leaderboard ({players.length})</h2>
+              
+              <div className="overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-brand-neon text-brand-dark font-black uppercase text-[11px] tracking-wider">
+                      <th className="py-3 px-4 text-center w-16">Rank</th>
+                      <th className="py-3 px-4">Nama Pemain</th>
+                      <th className="py-3 px-4 text-center w-28">W - L</th>
+                      <th className="py-3 px-4 text-center w-28">Agregat</th>
+                      <th className="py-3 px-4 text-center w-16">GD</th>
+                      <th className="py-3 px-4 text-center w-20 text-brand-dark font-black">Poin</th>
+                      <th className="py-3 px-4 text-center w-40">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {players.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-8 text-center text-gray-500 italic">
+                          Belum ada pemain terdaftar.
+                        </td>
+                      </tr>
+                    ) : (
+                      (() => {
+                        const sortedDbPlayers = [...players].sort((a, b) => {
+                          const pointsA = a.points || 0;
+                          const pointsB = b.points || 0;
+                          const gdA = (a.goalsScored || 0) - (a.goalsConceded || 0);
+                          const gdB = (b.goalsScored || 0) - (b.goalsConceded || 0);
+                          const gsA = a.goalsScored || 0;
+                          const gsB = b.goalsScored || 0;
+                          return pointsB - pointsA || gdB - gdA || gsB - gsA || a.name.localeCompare(b.name);
+                        });
+
+                        return sortedDbPlayers.map((p: any, idx: number) => {
+                          const isEditing = editingPlayerId === p.id;
+                          const gd = (isEditing ? editingGS - editingGC : (p.goalsScored || 0) - (p.goalsConceded || 0));
+                          
+                          return (
+                            <tr key={p.id} className="border-b border-gray-800 hover:bg-white/5 transition-colors">
+                              {/* Rank */}
+                              <td className="py-4 px-4 text-center font-bold text-gray-400">
+                                {idx + 1}
+                              </td>
+                              
+                              {/* Nama Pemain */}
+                              <td className="py-4 px-4 font-bold uppercase text-white">
+                                {isEditing ? (
+                                  <input 
+                                    type="text" 
+                                    value={editingName}
+                                    onChange={(e) => setEditingName(e.target.value)}
+                                    className="w-full bg-black/60 border border-brand-neon/50 text-white px-2 py-1 focus:outline-none"
+                                  />
+                                ) : (
+                                  p.name
+                                )}
+                              </td>
+                              
+                              {/* W - L */}
+                              <td className="py-4 px-4 text-center">
+                                {isEditing ? (
+                                  <div className="flex items-center justify-center space-x-1">
+                                    <input 
+                                      type="number" 
+                                      value={editingWin}
+                                      onChange={(e) => setEditingWin(Number(e.target.value))}
+                                      className="w-10 bg-black/60 border border-brand-neon/50 text-white text-center py-1 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-xs"
+                                    />
+                                    <span className="text-gray-400">-</span>
+                                    <input 
+                                      type="number" 
+                                      value={editingLose}
+                                      onChange={(e) => setEditingLose(Number(e.target.value))}
+                                      className="w-10 bg-black/60 border border-brand-neon/50 text-white text-center py-1 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-xs"
+                                    />
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-300 font-medium">{p.win || 0} - {p.lose || 0}</span>
+                                )}
+                              </td>
+                              
+                              {/* Agregat */}
+                              <td className="py-4 px-4 text-center">
+                                {isEditing ? (
+                                  <div className="flex items-center justify-center space-x-1">
+                                    <input 
+                                      type="number" 
+                                      value={editingGS}
+                                      onChange={(e) => setEditingGS(Number(e.target.value))}
+                                      className="w-10 bg-black/60 border border-brand-neon/50 text-white text-center py-1 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-xs"
+                                    />
+                                    <span className="text-gray-400">:</span>
+                                    <input 
+                                      type="number" 
+                                      value={editingGC}
+                                      onChange={(e) => setEditingGC(Number(e.target.value))}
+                                      className="w-10 bg-black/60 border border-brand-neon/50 text-white text-center py-1 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-xs"
+                                    />
+                                  </div>
+                                ) : (
+                                  <span className="text-gray-300 font-medium">{p.goalsScored || 0} : {p.goalsConceded || 0}</span>
+                                )}
+                              </td>
+                              
+                              {/* GD */}
+                              <td className="py-4 px-4 text-center font-semibold text-gray-400">
+                                {gd > 0 ? `+${gd}` : gd}
+                              </td>
+                              
+                              {/* Poin */}
+                              <td className="py-4 px-4 text-center font-black text-brand-neon text-base">
+                                {isEditing ? (
+                                  <input 
+                                    type="number" 
+                                    value={editingPoints}
+                                    onChange={(e) => setEditingPoints(Number(e.target.value))}
+                                    className="w-12 bg-black/60 border border-brand-neon/50 text-brand-neon text-center py-1 font-bold focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none text-sm"
+                                  />
+                                ) : (
+                                  p.points || 0
+                                )}
+                              </td>
+                              
+                              {/* Actions */}
+                              <td className="py-4 px-4 text-center">
+                                {isEditing ? (
+                                  <div className="flex justify-center space-x-2">
+                                    <button 
+                                      onClick={() => handleSaveEdit(p.id)}
+                                      className="bg-green-600 hover:bg-green-500 text-white px-3 py-1 font-bold sharp-clip uppercase text-xs cursor-pointer"
+                                    >
+                                      Simpan
+                                    </button>
+                                    <button 
+                                      onClick={handleCancelEdit}
+                                      className="bg-gray-600 hover:bg-gray-500 text-white px-3 py-1 font-bold sharp-clip uppercase text-xs cursor-pointer"
+                                    >
+                                      Batal
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <div className="flex justify-center space-x-2">
+                                    <button 
+                                      onClick={() => handleStartEdit(p)}
+                                      className="bg-brand-light hover:bg-brand-neon hover:text-brand-dark text-white px-3 py-1.5 font-bold sharp-clip uppercase text-xs transition-colors cursor-pointer"
+                                    >
+                                      Edit
+                                    </button>
+                                    <button 
+                                      onClick={() => handleDeletePlayer(p.id, p.name)}
+                                      className="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/40 px-3 py-1.5 font-bold sharp-clip uppercase text-xs transition-colors cursor-pointer"
+                                    >
+                                      Hapus
+                                    </button>
+                                  </div>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        });
+                      })()
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

@@ -2,6 +2,7 @@
 
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { cookies } from "next/headers";
 
 export async function registerPlayer(formData: FormData) {
   const rawName = formData.get("name") as string;
@@ -432,3 +433,153 @@ export async function forceResetDrawing() {
   revalidatePath("/");
   revalidatePath("/admin");
 }
+
+export async function resetDatabase() {
+  // Delete all matches
+  await prisma.match.deleteMany({});
+  
+  // Delete all players
+  await prisma.player.deleteMany({});
+  
+  // Reset system settings
+  await prisma.systemSettings.deleteMany({});
+  await prisma.systemSettings.create({
+    data: {
+      id: "1",
+      tournamentStatus: "UPCOMING",
+      registrationOpen: true,
+      currentTournamentId: "1",
+      availableCountries: "[]",
+      defaultAvailableCountries: "[]",
+      logoUrls: "{}",
+      isDrawingLive: false,
+      currentDrawingPlayerId: null,
+      currentQuote: "Gua pikir big four big four itu jago. Undah gua voor main euro truck masih aja culun. Saran gua mah belajar lagi dah"
+    }
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+}
+
+export async function deletePlayer(playerId: string) {
+  // Delete matches referencing this player to prevent foreign key errors
+  await prisma.match.deleteMany({
+    where: {
+      OR: [
+        { playerAId: playerId },
+        { playerBId: playerId }
+      ]
+    }
+  });
+
+  await prisma.player.delete({
+    where: { id: playerId }
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+}
+
+export async function addPlayerManually(
+  name: string, 
+  win: number = 0, 
+  lose: number = 0, 
+  goalsScored: number = 0, 
+  goalsConceded: number = 0, 
+  points: number = 0
+) {
+  if (!name || !name.trim()) return { error: "Nama pemain wajib diisi." };
+  const cleanName = name.trim();
+
+  const existingPlayer = await prisma.player.findUnique({
+    where: { name: cleanName }
+  });
+
+  if (existingPlayer) {
+    return { error: "Pemain dengan nama ini sudah terdaftar." };
+  }
+
+  await prisma.player.create({
+    data: {
+      name: cleanName,
+      country: "TBD",
+      isActive: true,
+      win: win,
+      lose: lose,
+      goalsScored: goalsScored,
+      goalsConceded: goalsConceded,
+      points: points
+    }
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function updatePlayer(
+  playerId: string, 
+  name: string, 
+  win: number, 
+  lose: number, 
+  goalsScored: number, 
+  goalsConceded: number, 
+  points: number
+) {
+  if (!name || !name.trim()) return { error: "Nama pemain wajib diisi." };
+  const cleanName = name.trim();
+
+  const existingPlayer = await prisma.player.findFirst({
+    where: {
+      name: cleanName,
+      NOT: { id: playerId }
+    }
+  });
+
+  if (existingPlayer) {
+    return { error: "Pemain dengan nama ini sudah digunakan oleh pemain lain." };
+  }
+
+  await prisma.player.update({
+    where: { id: playerId },
+    data: {
+      name: cleanName,
+      win: win,
+      lose: lose,
+      goalsScored: goalsScored,
+      goalsConceded: goalsConceded,
+      points: points
+    }
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function loginAdmin(password: string) {
+  const adminPassword = process.env.ADMIN_PASSWORD || "ecladmin"; // Fallback to "ecladmin"
+  
+  if (password === adminPassword) {
+    const cookieStore = await cookies();
+    cookieStore.set("admin_auth", "true", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: 60 * 60 * 24 // 1 day
+    });
+    return { success: true };
+  }
+  
+  return { error: "Password salah!" };
+}
+
+export async function logoutAdmin() {
+  const cookieStore = await cookies();
+  cookieStore.delete("admin_auth");
+  revalidatePath("/admin");
+  revalidatePath("/");
+}
+
+
