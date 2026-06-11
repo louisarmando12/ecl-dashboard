@@ -9,6 +9,52 @@ const getCountryCode = (countryName: string) => {
   return countryName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 };
 
+// Helper to compress images client-side before upload
+const compressImage = (file: File, maxWidth = 300, maxHeight = 300): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target?.result as string;
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            resolve(new File([blob], file.name, {
+              type: "image/jpeg",
+              lastModified: Date.now()
+            }));
+          } else {
+            reject(new Error("Canvas to Blob conversion failed"));
+          }
+        }, "image/jpeg", 0.7); // 70% quality JPEG is perfect
+      };
+    };
+    reader.onerror = (err) => reject(err);
+  });
+};
+
 export default function AdminPanel({ settings, players, matches }: any) {
   const [activeTab, setActiveTab] = useState<"GENERAL" | "DRAWING" | "DATABASE">("GENERAL");
   const [isGenerating, setIsGenerating] = useState(false);
@@ -153,14 +199,20 @@ export default function AdminPanel({ settings, players, matches }: any) {
 
     let uploadedUrl: string | null = null;
     if (newPlayerPhotoFile) {
-      const formData = new FormData();
-      formData.append("file", newPlayerPhotoFile);
-      const uploadRes = await uploadPlayerPhoto(formData);
-      if (uploadRes.error) {
-        setDbError(uploadRes.error);
+      try {
+        const compressedFile = await compressImage(newPlayerPhotoFile);
+        const formData = new FormData();
+        formData.append("file", compressedFile);
+        const uploadRes = await uploadPlayerPhoto(formData);
+        if (uploadRes.error) {
+          setDbError(uploadRes.error);
+          return;
+        }
+        uploadedUrl = uploadRes.url || null;
+      } catch (e: any) {
+        setDbError("Gagal kompresi foto: " + e.message);
         return;
       }
-      uploadedUrl = uploadRes.url || null;
     }
 
     const res = await addPlayerManually(
@@ -221,14 +273,20 @@ export default function AdminPanel({ settings, players, matches }: any) {
 
     let uploadedUrl = editingPhotoUrl;
     if (editingPhotoFile) {
-      const formData = new FormData();
-      formData.append("file", editingPhotoFile);
-      const uploadRes = await uploadPlayerPhoto(formData);
-      if (uploadRes.error) {
-        setDbError(uploadRes.error);
+      try {
+        const compressedFile = await compressImage(editingPhotoFile);
+        const formData = new FormData();
+        formData.append("file", compressedFile);
+        const uploadRes = await uploadPlayerPhoto(formData);
+        if (uploadRes.error) {
+          setDbError(uploadRes.error);
+          return;
+        }
+        uploadedUrl = uploadRes.url || null;
+      } catch (e: any) {
+        setDbError("Gagal kompresi foto: " + e.message);
         return;
       }
-      uploadedUrl = uploadRes.url || null;
     }
 
     const res = await updatePlayer(
