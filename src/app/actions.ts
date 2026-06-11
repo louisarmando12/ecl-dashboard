@@ -483,6 +483,7 @@ export async function deletePlayer(playerId: string) {
 
 export async function addPlayerManually(
   name: string, 
+  country: string = "TBD",
   win: number = 0, 
   lose: number = 0, 
   goalsScored: number = 0, 
@@ -503,7 +504,7 @@ export async function addPlayerManually(
   await prisma.player.create({
     data: {
       name: cleanName,
-      country: "TBD",
+      country: country.trim() || "TBD",
       isActive: true,
       win: win,
       lose: lose,
@@ -521,6 +522,7 @@ export async function addPlayerManually(
 export async function updatePlayer(
   playerId: string, 
   name: string, 
+  country: string,
   win: number, 
   lose: number, 
   goalsScored: number, 
@@ -541,15 +543,64 @@ export async function updatePlayer(
     return { error: "Pemain dengan nama ini sudah digunakan oleh pemain lain." };
   }
 
+  const cleanCountry = country.trim() || "TBD";
+
   await prisma.player.update({
     where: { id: playerId },
     data: {
       name: cleanName,
+      country: cleanCountry,
       win: win,
       lose: lose,
       goalsScored: goalsScored,
       goalsConceded: goalsConceded,
       points: points
+    }
+  });
+
+  // Also update matches cached country values
+  await prisma.match.updateMany({
+    where: { playerAId: playerId, isArchived: false },
+    data: { playerACountry: cleanCountry }
+  });
+  await prisma.match.updateMany({
+    where: { playerBId: playerId, isArchived: false },
+    data: { playerBCountry: cleanCountry }
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { success: true };
+}
+
+export async function updateMatchPlayers(
+  matchId: string, 
+  playerAId: string | null, 
+  playerBId: string | null
+) {
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
+  if (!match) return { error: "Pertandingan tidak ditemukan." };
+
+  let playerACountry = null;
+  let playerBCountry = null;
+
+  if (playerAId) {
+    const playerA = await prisma.player.findUnique({ where: { id: playerAId } });
+    if (playerA) playerACountry = playerA.country;
+  }
+  
+  if (playerBId) {
+    const playerB = await prisma.player.findUnique({ where: { id: playerBId } });
+    if (playerB) playerBCountry = playerB.country;
+  }
+
+  await prisma.match.update({
+    where: { id: matchId },
+    data: {
+      playerAId: playerAId || null,
+      playerACountry,
+      playerBId: playerBId || null,
+      playerBCountry,
     }
   });
 
@@ -581,5 +632,6 @@ export async function logoutAdmin() {
   revalidatePath("/admin");
   revalidatePath("/");
 }
+
 
 

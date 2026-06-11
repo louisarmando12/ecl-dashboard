@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { toggleRegistration, generateBracket, updateMatchScore, setTournamentStatus, archiveTournament, updateAvailableCountries, startDrawing, finishDrawing, forceResetDrawing, resetDatabase, deletePlayer, addPlayerManually, updatePlayer, logoutAdmin } from "@/app/actions";
+import { toggleRegistration, generateBracket, updateMatchScore, setTournamentStatus, archiveTournament, updateAvailableCountries, startDrawing, finishDrawing, forceResetDrawing, resetDatabase, deletePlayer, addPlayerManually, updatePlayer, logoutAdmin, updateMatchPlayers } from "@/app/actions";
 
 // Helper to convert country name to 2-letter ISO code for flagcdn
 const getCountryCode = (countryName: string) => {
@@ -119,6 +119,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
   };
 
   const [newPlayerName, setNewPlayerName] = useState("");
+  const [newPlayerCountry, setNewPlayerCountry] = useState("TBD");
   const [newPlayerWin, setNewPlayerWin] = useState(0);
   const [newPlayerLose, setNewPlayerLose] = useState(0);
   const [newPlayerGS, setNewPlayerGS] = useState(0);
@@ -127,6 +128,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
 
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
+  const [editingCountry, setEditingCountry] = useState("TBD");
   const [editingWin, setEditingWin] = useState(0);
   const [editingLose, setEditingLose] = useState(0);
   const [editingGS, setEditingGS] = useState(0);
@@ -148,6 +150,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
 
     const res = await addPlayerManually(
       newPlayerName, 
+      newPlayerCountry,
       Number(newPlayerWin), 
       Number(newPlayerLose), 
       Number(newPlayerGS), 
@@ -160,6 +163,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
     } else {
       setDbSuccess(`Pemain "${newPlayerName}" berhasil ditambahkan!`);
       setNewPlayerName("");
+      setNewPlayerCountry("TBD");
       setNewPlayerWin(0);
       setNewPlayerLose(0);
       setNewPlayerGS(0);
@@ -178,6 +182,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
   const handleStartEdit = (player: any) => {
     setEditingPlayerId(player.id);
     setEditingName(player.name);
+    setEditingCountry(player.country || "TBD");
     setEditingWin(player.win || 0);
     setEditingLose(player.lose || 0);
     setEditingGS(player.goalsScored || 0);
@@ -196,6 +201,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
     const res = await updatePlayer(
       id, 
       editingName, 
+      editingCountry,
       Number(editingWin), 
       Number(editingLose), 
       Number(editingGS), 
@@ -429,6 +435,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                     <div className="flex justify-between items-stretch">
                                       {/* Players Column */}
                                       <div className="flex flex-col justify-center flex-grow p-3 space-y-2">
+                                        {/* Player A */}
                                         <div className="flex items-center gap-3">
                                           {match.playerA?.country && match.playerA?.country !== "TBD" && (
                                             <img 
@@ -437,16 +444,37 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                               className="w-6 h-6 object-contain"
                                             />
                                           )}
-                                          <div className="flex flex-col">
-                                            <div className="text-sm font-bold uppercase truncate w-32" title={match.playerA?.name || "TBD"}>
-                                              {match.status === "COMPLETED" && !match.playerAId ? "BYE" : match.playerA?.name || "TBD"}
-                                            </div>
-                                            <div className="text-[10px] text-brand-neon/80 font-bold uppercase truncate w-32">{match.status === "COMPLETED" && !match.playerAId ? "" : match.playerA?.country}</div>
+                                          <div className="flex flex-col flex-grow">
+                                            {match.status === "COMPLETED" ? (
+                                              <>
+                                                <div className="text-sm font-bold uppercase truncate w-32" title={match.playerA?.name || "TBD"}>
+                                                  {!match.playerAId ? "BYE" : match.playerA?.name || "TBD"}
+                                                </div>
+                                                <div className="text-[10px] text-brand-neon/80 font-bold uppercase truncate w-32">{!match.playerAId ? "" : match.playerA?.country}</div>
+                                              </>
+                                            ) : (
+                                              <select
+                                                value={match.playerAId || ""}
+                                                onChange={async (e) => {
+                                                  const val = e.target.value || null;
+                                                  await updateMatchPlayers(match.id, val, match.playerBId);
+                                                }}
+                                                className="bg-black/60 border border-brand-neon/30 text-white text-xs font-bold p-1 rounded focus:outline-none focus:border-brand-neon max-w-[170px]"
+                                              >
+                                                <option value="">-- TBD / BYE --</option>
+                                                {players.filter((p: any) => p.isActive).map((p: any) => (
+                                                  <option key={p.id} value={p.id}>
+                                                    {p.name} ({p.country})
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            )}
                                           </div>
                                         </div>
                                         
                                         <div className="w-full h-px bg-gradient-to-r from-transparent via-brand-neon/30 to-transparent my-1" />
                                         
+                                        {/* Player B */}
                                         <div className="flex items-center gap-3">
                                           {match.playerB?.country && match.playerB?.country !== "TBD" && (
                                             <img 
@@ -455,11 +483,31 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                               className="w-6 h-6 object-contain"
                                             />
                                           )}
-                                          <div className="flex flex-col">
-                                            <div className="text-sm font-bold uppercase truncate w-32" title={match.playerB?.name || "TBD"}>
-                                              {match.status === "COMPLETED" && !match.playerBId ? "BYE" : match.playerB?.name || "TBD"}
-                                            </div>
-                                            <div className="text-[10px] text-brand-neon/80 font-bold uppercase truncate w-32">{match.status === "COMPLETED" && !match.playerBId ? "" : match.playerB?.country}</div>
+                                          <div className="flex flex-col flex-grow">
+                                            {match.status === "COMPLETED" ? (
+                                              <>
+                                                <div className="text-sm font-bold uppercase truncate w-32" title={match.playerB?.name || "TBD"}>
+                                                  {!match.playerBId ? "BYE" : match.playerB?.name || "TBD"}
+                                                </div>
+                                                <div className="text-[10px] text-brand-neon/80 font-bold uppercase truncate w-32">{!match.playerBId ? "" : match.playerB?.country}</div>
+                                              </>
+                                            ) : (
+                                              <select
+                                                value={match.playerBId || ""}
+                                                onChange={async (e) => {
+                                                  const val = e.target.value || null;
+                                                  await updateMatchPlayers(match.id, match.playerAId, val);
+                                                }}
+                                                className="bg-black/60 border border-brand-neon/30 text-white text-xs font-bold p-1 rounded focus:outline-none focus:border-brand-neon max-w-[170px]"
+                                              >
+                                                <option value="">-- TBD / BYE --</option>
+                                                {players.filter((p: any) => p.isActive).map((p: any) => (
+                                                  <option key={p.id} value={p.id}>
+                                                    {p.name} ({p.country})
+                                                  </option>
+                                                ))}
+                                              </select>
+                                            )}
                                           </div>
                                         </div>
                                       </div>
@@ -651,6 +699,17 @@ export default function AdminPanel({ settings, players, matches }: any) {
                   />
                 </div>
                 
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Negara / Tim (Country)</label>
+                  <input 
+                    type="text" 
+                    value={newPlayerCountry}
+                    onChange={(e) => setNewPlayerCountry(e.target.value)}
+                    className="w-full bg-black/40 border border-brand-neon/30 text-white p-3 focus:outline-none focus:border-brand-neon focus:ring-1 focus:ring-brand-neon transition-all"
+                    placeholder="Contoh: Portugal (atau TBD)"
+                  />
+                </div>
+
                 <div className="border-t border-brand-neon/25 pt-4 my-2">
                   <h3 className="text-sm font-bold uppercase text-brand-neon mb-3">Inject Leaderboard Stats</h3>
                   
@@ -723,6 +782,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                     <tr className="bg-brand-neon text-brand-dark font-black uppercase text-[11px] tracking-wider">
                       <th className="py-3 px-4 text-center w-16">Rank</th>
                       <th className="py-3 px-4">Nama Pemain</th>
+                      <th className="py-3 px-4">Negara</th>
                       <th className="py-3 px-4 text-center w-28">W - L</th>
                       <th className="py-3 px-4 text-center w-28">Agregat</th>
                       <th className="py-3 px-4 text-center w-16">GD</th>
@@ -733,7 +793,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                   <tbody>
                     {players.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="py-8 text-center text-gray-500 italic">
+                        <td colSpan={8} className="py-8 text-center text-gray-500 italic">
                           Belum ada pemain terdaftar.
                         </td>
                       </tr>
@@ -771,6 +831,30 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                   />
                                 ) : (
                                   p.name
+                                )}
+                              </td>
+
+                              {/* Negara */}
+                              <td className="py-4 px-4 font-bold uppercase text-white">
+                                {isEditing ? (
+                                  <input 
+                                    type="text" 
+                                    value={editingCountry}
+                                    onChange={(e) => setEditingCountry(e.target.value)}
+                                    className="w-full bg-black/60 border border-brand-neon/50 text-white px-2 py-1 focus:outline-none"
+                                  />
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    {p.country && p.country !== "TBD" && (
+                                      <img 
+                                        src={`/api/logo?team=${encodeURIComponent(p.country)}`} 
+                                        alt={p.country} 
+                                        className="w-5 h-5 object-contain"
+                                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                                      />
+                                    )}
+                                    <span>{p.country || "TBD"}</span>
+                                  </div>
                                 )}
                               </td>
                               
