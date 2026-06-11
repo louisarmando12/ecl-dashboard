@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { toggleRegistration, generateBracket, updateMatchScore, setTournamentStatus, archiveTournament, updateAvailableCountries, startDrawing, finishDrawing, forceResetDrawing, resetDatabase, deletePlayer, addPlayerManually, updatePlayer, logoutAdmin, updateMatchPlayers } from "@/app/actions";
+import { toggleRegistration, generateBracket, updateMatchScore, setTournamentStatus, archiveTournament, updateAvailableCountries, startDrawing, finishDrawing, forceResetDrawing, resetDatabase, deletePlayer, addPlayerManually, updatePlayer, logoutAdmin, updateMatchPlayers, destroyTournament } from "@/app/actions";
 
 // Helper to convert country name to 2-letter ISO code for flagcdn
 const getCountryCode = (countryName: string) => {
@@ -310,11 +310,28 @@ export default function AdminPanel({ settings, players, matches }: any) {
                 </div>
                 <p className="text-xs text-gray-400 flex-grow mb-6">Input scores below as the tournament progresses.</p>
                 {matches.length > 0 && settings?.tournamentStatus === "UPCOMING" && (
-                  <button onClick={async () => {
-                    await setTournamentStatus("LIVE");
-                  }} className="w-full bg-brand-neon hover:bg-white text-brand-dark font-black text-sm px-4 py-3 uppercase tracking-wider sharp-clip transition-colors">
-                    Start Tournament
-                  </button>
+                  <div className="flex flex-col gap-2 w-full">
+                    <button 
+                      onClick={async () => {
+                        if (confirm("Mulai turnamen sekarang? Bagan pertandingan akan dipublikasikan ke penonton.")) {
+                          await setTournamentStatus("LIVE");
+                        }
+                      }} 
+                      className="w-full bg-brand-neon hover:bg-white text-brand-dark font-black text-sm px-4 py-3 uppercase tracking-wider sharp-clip transition-colors cursor-pointer"
+                    >
+                      Start Tournament
+                    </button>
+                    <button 
+                      onClick={async () => {
+                        if (confirm("⚠️ PERINGATAN: Hancurkan turnamen ini? Bagan pertandingan saat ini akan dihapus dan pendaftaran akan dibuka kembali.")) {
+                          await destroyTournament();
+                        }
+                      }} 
+                      className="w-full bg-red-600 hover:bg-red-500 text-white font-black text-sm px-4 py-3 uppercase tracking-wider sharp-clip transition-colors cursor-pointer"
+                    >
+                      Destroy Tournament
+                    </button>
+                  </div>
                 )}
                 {matches.length > 0 && settings?.tournamentStatus === "LIVE" && (
                   <button onClick={async () => {

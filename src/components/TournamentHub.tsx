@@ -7,15 +7,21 @@ export default function TournamentHub({ matches, settings }: { matches: any[], s
 
   const currentTourneyId = settings?.currentTournamentId || "1";
 
+  const isTourneyLiveOrFinished = settings?.tournamentStatus === "LIVE" || settings?.tournamentStatus === "FINISHED";
+
   // Group matches by tournamentId
   const tournaments = useMemo(() => {
     const groups: Record<string, any[]> = {};
     matches.forEach(m => {
+      // Hide current tournament matches if it hasn't started yet (still UPCOMING)
+      if (m.tournamentId === currentTourneyId && !isTourneyLiveOrFinished) {
+        return;
+      }
       if (!groups[m.tournamentId]) groups[m.tournamentId] = [];
       groups[m.tournamentId].push(m);
     });
     return groups;
-  }, [matches]);
+  }, [matches, currentTourneyId, isTourneyLiveOrFinished]);
 
   const filteredTournaments = useMemo(() => {
     const list = Object.entries(tournaments).map(([tId, tMatches]) => {
@@ -88,8 +94,10 @@ export default function TournamentHub({ matches, settings }: { matches: any[], s
       {/* Match Cards List */}
       <div className="space-y-12">
         {filteredTournaments.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 italic">
-            No matches found for this filter.
+          <div className="text-center py-12 text-gray-400 italic bg-brand-light/10 border border-brand-neon/20 p-8 sharp-clip">
+            <Trophy className="w-12 h-12 text-brand-neon/40 mx-auto mb-4" />
+            <p className="font-bold uppercase tracking-wider text-white">Bagan pertandingan belum dirilis.</p>
+            <p className="text-xs text-gray-500 mt-1">Silakan cek kembali setelah admin memulai turnamen resmi.</p>
           </div>
         ) : (
           filteredTournaments.map(({ tId, matches: tMatches }, idx) => {

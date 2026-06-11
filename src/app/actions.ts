@@ -206,11 +206,6 @@ export async function generateBracket() {
     roundNum++;
   }
 
-  await prisma.systemSettings.update({
-    where: { id: settings.id },
-    data: { tournamentStatus: "LIVE" }
-  });
-
   revalidatePath("/admin");
   revalidatePath("/");
 }
@@ -637,6 +632,30 @@ export async function logoutAdmin() {
   revalidatePath("/admin");
   revalidatePath("/");
 }
+
+export async function destroyTournament() {
+  const settings = await prisma.systemSettings.findFirst();
+  if (!settings) return { error: "Settings not found" };
+
+  // Delete all unarchived matches
+  await prisma.match.deleteMany({
+    where: { isArchived: false }
+  });
+
+  // Reset system settings
+  await prisma.systemSettings.update({
+    where: { id: settings.id },
+    data: {
+      tournamentStatus: "UPCOMING",
+      registrationOpen: true
+    }
+  });
+
+  revalidatePath("/admin");
+  revalidatePath("/");
+  return { success: true };
+}
+
 
 
 
