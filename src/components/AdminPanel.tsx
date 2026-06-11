@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { toggleRegistration, generateBracket, updateMatchScore, setTournamentStatus, archiveTournament, updateAvailableCountries, startDrawing, finishDrawing, forceResetDrawing, resetDatabase, deletePlayer, addPlayerManually, updatePlayer, logoutAdmin, updateMatchPlayers, destroyTournament } from "@/app/actions";
+import { toggleRegistration, generateBracket, updateMatchScore, setTournamentStatus, archiveTournament, updateAvailableCountries, startDrawing, finishDrawing, forceResetDrawing, resetDatabase, deletePlayer, addPlayerManually, updatePlayer, logoutAdmin, updateMatchPlayers, destroyTournament, uploadPlayerPhoto } from "@/app/actions";
 
 // Helper to convert country name to 2-letter ISO code for flagcdn
 const getCountryCode = (countryName: string) => {
@@ -125,6 +125,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
   const [newPlayerGS, setNewPlayerGS] = useState(0);
   const [newPlayerGC, setNewPlayerGC] = useState(0);
   const [newPlayerPoints, setNewPlayerPoints] = useState(0);
+  const [newPlayerPhotoFile, setNewPlayerPhotoFile] = useState<File | null>(null);
 
   const [editingPlayerId, setEditingPlayerId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
@@ -134,6 +135,8 @@ export default function AdminPanel({ settings, players, matches }: any) {
   const [editingGS, setEditingGS] = useState(0);
   const [editingGC, setEditingGC] = useState(0);
   const [editingPoints, setEditingPoints] = useState(0);
+  const [editingPhotoUrl, setEditingPhotoUrl] = useState<string | null>(null);
+  const [editingPhotoFile, setEditingPhotoFile] = useState<File | null>(null);
 
   const [dbError, setDbError] = useState<string | null>(null);
   const [dbSuccess, setDbSuccess] = useState<string | null>(null);
@@ -148,6 +151,18 @@ export default function AdminPanel({ settings, players, matches }: any) {
       return;
     }
 
+    let uploadedUrl: string | null = null;
+    if (newPlayerPhotoFile) {
+      const formData = new FormData();
+      formData.append("file", newPlayerPhotoFile);
+      const uploadRes = await uploadPlayerPhoto(formData);
+      if (uploadRes.error) {
+        setDbError(uploadRes.error);
+        return;
+      }
+      uploadedUrl = uploadRes.url || null;
+    }
+
     const res = await addPlayerManually(
       newPlayerName, 
       newPlayerCountry,
@@ -155,7 +170,8 @@ export default function AdminPanel({ settings, players, matches }: any) {
       Number(newPlayerLose), 
       Number(newPlayerGS), 
       Number(newPlayerGC), 
-      Number(newPlayerPoints)
+      Number(newPlayerPoints),
+      uploadedUrl
     );
 
     if (res && res.error) {
@@ -169,6 +185,9 @@ export default function AdminPanel({ settings, players, matches }: any) {
       setNewPlayerGS(0);
       setNewPlayerGC(0);
       setNewPlayerPoints(0);
+      setNewPlayerPhotoFile(null);
+      const fileInput = document.getElementById("new-player-photo") as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
     }
   };
 
@@ -188,6 +207,8 @@ export default function AdminPanel({ settings, players, matches }: any) {
     setEditingGS(player.goalsScored || 0);
     setEditingGC(player.goalsConceded || 0);
     setEditingPoints(player.points || 0);
+    setEditingPhotoUrl(player.photoUrl || null);
+    setEditingPhotoFile(null);
     setDbError(null);
     setDbSuccess(null);
   };
@@ -198,6 +219,18 @@ export default function AdminPanel({ settings, players, matches }: any) {
       return;
     }
 
+    let uploadedUrl = editingPhotoUrl;
+    if (editingPhotoFile) {
+      const formData = new FormData();
+      formData.append("file", editingPhotoFile);
+      const uploadRes = await uploadPlayerPhoto(formData);
+      if (uploadRes.error) {
+        setDbError(uploadRes.error);
+        return;
+      }
+      uploadedUrl = uploadRes.url || null;
+    }
+
     const res = await updatePlayer(
       id, 
       editingName, 
@@ -206,7 +239,8 @@ export default function AdminPanel({ settings, players, matches }: any) {
       Number(editingLose), 
       Number(editingGS), 
       Number(editingGC), 
-      Number(editingPoints)
+      Number(editingPoints),
+      uploadedUrl
     );
 
     if (res && res.error) {
@@ -734,6 +768,21 @@ export default function AdminPanel({ settings, players, matches }: any) {
                   />
                 </div>
 
+                <div>
+                  <label className="block text-xs font-bold uppercase text-gray-400 mb-1">Foto Pemain (PNG / JPG)</label>
+                  <input 
+                    type="file" 
+                    id="new-player-photo"
+                    accept="image/*"
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        setNewPlayerPhotoFile(e.target.files[0]);
+                      }
+                    }}
+                    className="w-full bg-black/40 border border-brand-neon/30 text-white p-2 text-sm focus:outline-none focus:border-brand-neon transition-all"
+                  />
+                </div>
+
                 <div className="border-t border-brand-neon/25 pt-4 my-2">
                   <h3 className="text-sm font-bold uppercase text-brand-neon mb-3">Inject Leaderboard Stats</h3>
                   
@@ -805,6 +854,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                   <thead>
                     <tr className="bg-brand-neon text-brand-dark font-black uppercase text-[11px] tracking-wider">
                       <th className="py-3 px-4 text-center w-16">Rank</th>
+                      <th className="py-3 px-4 text-center w-16">Foto</th>
                       <th className="py-3 px-4">Nama Pemain</th>
                       <th className="py-3 px-4">Negara</th>
                       <th className="py-3 px-4 text-center w-28">W - L</th>
@@ -817,7 +867,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                   <tbody>
                     {players.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="py-8 text-center text-gray-500 italic">
+                        <td colSpan={9} className="py-8 text-center text-gray-500 italic">
                           Belum ada pemain terdaftar.
                         </td>
                       </tr>
@@ -842,6 +892,47 @@ export default function AdminPanel({ settings, players, matches }: any) {
                               {/* Rank */}
                               <td className="py-4 px-4 text-center font-bold text-gray-400">
                                 {idx + 1}
+                              </td>
+
+                              {/* Foto */}
+                              <td className="py-2 px-4 text-center">
+                                {isEditing ? (
+                                  <div className="flex flex-col items-center gap-1">
+                                    {editingPhotoUrl && (
+                                      <img 
+                                        src={editingPhotoUrl} 
+                                        alt="Preview" 
+                                        className="w-10 h-10 rounded-full object-cover border border-brand-neon"
+                                      />
+                                    )}
+                                    <input 
+                                      type="file" 
+                                      id="edit-player-photo"
+                                      accept="image/*"
+                                      onChange={(e) => {
+                                        if (e.target.files && e.target.files[0]) {
+                                          setEditingPhotoFile(e.target.files[0]);
+                                          setEditingPhotoUrl(URL.createObjectURL(e.target.files[0]));
+                                        }
+                                      }}
+                                      className="text-[10px] w-28 bg-black border border-gray-700 p-1"
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="flex justify-center">
+                                    {p.photoUrl ? (
+                                      <img 
+                                        src={p.photoUrl} 
+                                        alt={p.name} 
+                                        className="w-10 h-10 rounded-full object-cover border border-brand-neon"
+                                      />
+                                    ) : (
+                                      <div className="w-10 h-10 rounded-full bg-brand-light/30 border border-gray-700 flex items-center justify-center font-bold text-xs text-gray-400">
+                                        {p.name.substring(0, 2).toUpperCase()}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
                               </td>
                               
                               {/* Nama Pemain */}

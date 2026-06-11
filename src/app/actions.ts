@@ -3,6 +3,9 @@
 import prisma from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { put } from "@vercel/blob";
+import fs from "fs";
+import path from "path";
 
 export async function registerPlayer(formData: FormData) {
   const rawName = formData.get("name") as string;
@@ -488,7 +491,8 @@ export async function addPlayerManually(
   lose: number = 0, 
   goalsScored: number = 0, 
   goalsConceded: number = 0, 
-  points: number = 0
+  points: number = 0,
+  photoUrl: string | null = null
 ) {
   if (!name || !name.trim()) return { error: "Nama pemain wajib diisi." };
   const cleanName = name.trim();
@@ -510,7 +514,8 @@ export async function addPlayerManually(
       lose: lose,
       goalsScored: goalsScored,
       goalsConceded: goalsConceded,
-      points: points
+      points: points,
+      photoUrl: photoUrl
     }
   });
 
@@ -527,7 +532,8 @@ export async function updatePlayer(
   lose: number, 
   goalsScored: number, 
   goalsConceded: number, 
-  points: number
+  points: number,
+  photoUrl: string | null = null
 ) {
   if (!name || !name.trim()) return { error: "Nama pemain wajib diisi." };
   const cleanName = name.trim();
@@ -554,7 +560,8 @@ export async function updatePlayer(
       lose: lose,
       goalsScored: goalsScored,
       goalsConceded: goalsConceded,
-      points: points
+      points: points,
+      photoUrl: photoUrl
     }
   });
 
@@ -654,6 +661,40 @@ export async function destroyTournament() {
   revalidatePath("/admin");
   revalidatePath("/");
   return { success: true };
+}
+
+export async function uploadPlayerPhoto(formData: FormData) {
+  const file = formData.get("file") as File;
+  if (!file) return { error: "No file provided" };
+
+  try {
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    // clean filename
+    const cleanFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const filename = `players/${Date.now()}-${cleanFileName}`;
+
+    if (process.env.BLOB_READ_WRITE_TOKEN) {
+      const blob = await put(filename, buffer, {
+        access: 'public',
+        contentType: file.type
+      });
+      return { url: blob.url };
+    } else {
+      // Save locally
+      const publicDir = path.join(process.cwd(), 'public', 'players');
+      if (!fs.existsSync(publicDir)) {
+        fs.mkdirSync(publicDir, { recursive: true });
+      }
+      const dest = path.join(publicDir, cleanFileName);
+      fs.writeFileSync(dest, buffer);
+      return { url: `/players/${cleanFileName}` };
+    }
+  } catch (error: any) {
+    console.error("Upload error:", error);
+    return { error: error.message || "Failed to upload photo" };
+  }
 }
 
 

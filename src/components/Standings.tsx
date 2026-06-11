@@ -26,12 +26,20 @@ export default function Standings({ leaderboard }: { leaderboard: any[] }) {
 
       {/* Top 3 Podium */}
       {top3.length > 0 && (
-        <div className="flex justify-center items-end space-x-4 md:space-x-8 mt-16 mb-16 h-64">
+        <div className="flex justify-center items-end space-x-4 md:space-x-8 mt-24 mb-16 h-64">
           
           {/* Rank 2 */}
           {top3[1] && (
             <div className={`w-1/4 max-w-[200px] h-[80%] bg-brand-light/30 border-t-4 border-l-4 border-r-4 ${getPodiumColor(1)} flex flex-col justify-end items-center pb-4 relative`}>
               <div className="absolute -top-12 text-6xl font-black opacity-30">2</div>
+              {/* Photo Avatar */}
+              <div className="absolute -top-10 md:-top-12 left-1/2 -translate-x-1/2 w-14 h-14 md:w-20 md:h-20 rounded-full overflow-hidden border-2 border-gray-300 bg-brand-dark flex items-center justify-center shadow-[0_0_15px_rgba(209,213,219,0.5)] z-20">
+                {top3[1].photoUrl ? (
+                  <img src={top3[1].photoUrl} alt={top3[1].name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-lg md:text-xl font-bold text-gray-300 opacity-60">{top3[1].name.substring(0, 2).toUpperCase()}</span>
+                )}
+              </div>
               <div className="text-xl font-bold uppercase text-center px-2">{top3[1].name}</div>
               <div className="text-sm opacity-80">{top3[1].points} PTS</div>
             </div>
@@ -41,6 +49,14 @@ export default function Standings({ leaderboard }: { leaderboard: any[] }) {
           {top3[0] && (
             <div className={`w-1/4 max-w-[220px] h-full bg-brand-light/50 border-t-4 border-l-4 border-r-4 ${getPodiumColor(0)} flex flex-col justify-end items-center pb-4 relative z-10`}>
               <div className="absolute -top-16 text-8xl font-black opacity-30">1</div>
+              {/* Photo Avatar */}
+              <div className="absolute -top-12 md:-top-16 left-1/2 -translate-x-1/2 w-16 h-16 md:w-24 md:h-24 rounded-full overflow-hidden border-2 border-yellow-400 bg-brand-dark flex items-center justify-center shadow-[0_0_15px_rgba(250,204,21,0.5)] z-20">
+                {top3[0].photoUrl ? (
+                  <img src={top3[0].photoUrl} alt={top3[0].name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-xl md:text-2xl font-black text-yellow-400 opacity-60">{top3[0].name.substring(0, 2).toUpperCase()}</span>
+                )}
+              </div>
               <div className="text-2xl font-black uppercase text-center px-2">{top3[0].name}</div>
               <div className="text-sm font-bold opacity-80">{top3[0].points} PTS</div>
             </div>
@@ -50,6 +66,14 @@ export default function Standings({ leaderboard }: { leaderboard: any[] }) {
           {top3[2] && (
             <div className={`w-1/4 max-w-[200px] h-[70%] bg-brand-light/20 border-t-4 border-l-4 border-r-4 ${getPodiumColor(2)} flex flex-col justify-end items-center pb-4 relative`}>
               <div className="absolute -top-10 text-5xl font-black opacity-30">3</div>
+              {/* Photo Avatar */}
+              <div className="absolute -top-8 md:-top-10 left-1/2 -translate-x-1/2 w-12 h-12 md:w-16 md:h-16 rounded-full overflow-hidden border-2 border-amber-700 bg-brand-dark flex items-center justify-center shadow-[0_0_15px_rgba(180,83,9,0.5)] z-20">
+                {top3[2].photoUrl ? (
+                  <img src={top3[2].photoUrl} alt={top3[2].name} className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-sm md:text-lg font-bold text-amber-700 opacity-60">{top3[2].name.substring(0, 2).toUpperCase()}</span>
+                )}
+              </div>
               <div className="text-lg font-bold uppercase text-center px-2">{top3[2].name}</div>
               <div className="text-sm opacity-80">{top3[2].points} PTS</div>
             </div>
