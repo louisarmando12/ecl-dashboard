@@ -682,7 +682,14 @@ export async function uploadPlayerPhoto(formData: FormData) {
       });
       return { url: blob.url };
     } else {
-      // Save locally
+      // If running online (e.g., on Vercel), we cannot save files locally due to read-only ephemeral filesystem
+      if (process.env.NODE_ENV === "production" || process.env.VERCEL === "1") {
+        return { 
+          error: "Penyimpanan foto online belum aktif. Silakan aktifkan/hubungkan Vercel Blob di dashboard Vercel Anda, lalu redeploy aplikasi." 
+        };
+      }
+
+      // Save locally (only for local development)
       const publicDir = path.join(process.cwd(), 'public', 'players');
       if (!fs.existsSync(publicDir)) {
         fs.mkdirSync(publicDir, { recursive: true });
