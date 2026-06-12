@@ -59,6 +59,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
   const [activeTab, setActiveTab] = useState<"GENERAL" | "DRAWING" | "DATABASE">("GENERAL");
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedBracketSize, setSelectedBracketSize] = useState<string>("auto");
+  const [typedCountries, setTypedCountries] = useState<Record<string, string>>({});
   const [isDownloading, setIsDownloading] = useState(false);
   const [countriesInput, setCountriesInput] = useState(() => {
     try {
@@ -782,13 +783,58 @@ export default function AdminPanel({ settings, players, matches }: any) {
                 )}
                 
                 {tbdPlayers.map((p: any) => (
-                  <div key={p.id} className={`bg-black/40 border p-4 flex justify-between items-center transition-colors group ${p.id === spinningPlayerId ? 'border-brand-neon/50 bg-brand-neon/10 animate-pulse shadow-[0_0_20px_rgba(176,251,11,0.2)]' : 'border-gray-700/50 hover:border-brand-neon/50'}`}>
+                  <div key={p.id} className={`bg-black/40 border p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors group ${p.id === spinningPlayerId ? 'border-brand-neon/50 bg-brand-neon/10 animate-pulse shadow-[0_0_20px_rgba(176,251,11,0.2)]' : 'border-gray-700/50 hover:border-brand-neon/50'}`}>
                     <span className={`font-bold uppercase transition-colors ${p.id === spinningPlayerId ? 'text-brand-neon' : 'text-gray-300 group-hover:text-white'}`}>{p.name}</span>
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {/* Manual Team Input */}
+                      <input 
+                        type="text"
+                        placeholder="Nama Tim (Negara)"
+                        value={typedCountries[p.id] || ""}
+                        onChange={(e) => setTypedCountries(prev => ({ ...prev, [p.id]: e.target.value }))}
+                        className="bg-black/60 border border-brand-neon/30 text-white text-xs px-2.5 py-1.5 focus:outline-none focus:border-brand-neon max-w-[140px] sharp-clip placeholder:text-gray-600 font-bold uppercase"
+                      />
+                      <button 
+                        onClick={async () => {
+                          const countryName = typedCountries[p.id];
+                          if (!countryName || !countryName.trim()) {
+                            alert("Nama tim tidak boleh kosong.");
+                            return;
+                          }
+                          const res = await updatePlayer(
+                            p.id,
+                            p.name,
+                            countryName.trim(),
+                            p.win || 0,
+                            p.lose || 0,
+                            p.goalsScored || 0,
+                            p.goalsConceded || 0,
+                            p.points || 0,
+                            p.photoUrl
+                          );
+                          if (res && res.error) {
+                            alert(res.error);
+                          } else {
+                            // Clear input state
+                            setTypedCountries(prev => {
+                              const copy = { ...prev };
+                              delete copy[p.id];
+                              return copy;
+                            });
+                          }
+                        }}
+                        disabled={!!spinningPlayerId}
+                        className="bg-brand-neon hover:bg-white disabled:bg-gray-700 disabled:text-gray-500 text-brand-dark px-3 py-1.5 font-bold sharp-clip uppercase text-xs transition-colors cursor-pointer disabled:cursor-not-allowed"
+                      >
+                        Set
+                      </button>
+
+                      <span className="text-gray-700 hidden sm:inline">|</span>
+
                       <button 
                         onClick={() => handleDeletePlayer(p.id, p.name)}
                         disabled={!!spinningPlayerId}
-                        className="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/40 p-2 font-bold sharp-clip uppercase text-xs transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                        className="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/40 p-1.5 font-bold sharp-clip uppercase text-xs transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
                         title="Hapus Pemain"
                       >
                         🗑️
@@ -796,7 +842,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                       <button 
                         onClick={() => handleStartDrawing(p)}
                         disabled={settings?.isDrawingLive || !!spinningPlayerId}
-                        className="bg-brand-neon/20 hover:bg-brand-neon text-brand-neon hover:text-brand-dark px-6 py-2 font-bold sharp-clip uppercase transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed border border-brand-neon/50"
+                        className="bg-brand-neon/20 hover:bg-brand-neon text-brand-neon hover:text-brand-dark px-4 py-1.5 font-bold sharp-clip uppercase transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed border border-brand-neon/50 text-xs"
                       >
                         {p.id === spinningPlayerId ? "Drawing..." : "Spin"}
                       </button>
