@@ -241,77 +241,227 @@ export async function generateBracket(customSize?: number) {
   revalidatePath("/");
 }
 
-async function isSlotBye(roundNum: number, bracketNum: number, isPlayerA: boolean, tournamentId: string): Promise<boolean> {
-  if (roundNum === 1) {
-    return true; // In Round 1, a null slot is always a BYE
-  }
-  const prevBracket = isPlayerA ? bracketNum * 2 - 1 : bracketNum * 2;
-  const prevMatch = await prisma.match.findFirst({
-    where: {
-      round: `Round ${roundNum - 1}`,
-      bracket: prevBracket,
-      tournamentId,
-      isArchived: false
-    }
-  });
-  return !prevMatch; // It is a BYE if there is no feeding match
-}
-
 async function propagateMatchChanges(matchId: string) {
-  const match = await prisma.match.findUnique({
-    where: { id: matchId },
-    include: { playerA: true, playerB: true }
+  const targetMatch = await prisma.match.findUnique({
+    where: { id: matchId }
   });
-  if (!match) return;
+  if (!targetMatch) return;
 
   const settings = await prisma.systemSettings.findFirst();
   const isLiveOrFinished = settings?.tournamentStatus === "LIVE" || settings?.tournamentStatus === "FINISHED";
 
-  const currentRoundNum = parseInt(match.round.replace("Round ", "")) || 1;
-  const currentBracket = match.bracket;
+  const matches = await prisma.match.findMany({
+    where: { tournamentId: targetMatch.tournamentId, isArchived: false }
+  });
+  const players = await prisma.player.findMany();
 
-  let status = match.status;
-  let scoreA = match.scoreA;
-  let scoreB = match.scoreB;
-  let winnerId = match.winnerId;
-  let loserId = match.loserId;
+  const findMatchInMem = (roundName: string, bracketNum: number) => {
+    return matches.find(m => m.round === roundName && m.bracket === bracketNum);
+  };
 
-  // Determine if Player A and/or Player B slots are BYEs
-  const isPlayerABye = !match.playerAId && await isSlotBye(currentRoundNum, currentBracket, true, match.tournamentId);
-  const isPlayerBBye = !match.playerBId && await isSlotBye(currentRoundNum, currentBracket, false, match.tournamentId);
+  const isSlotByeInMem = (roundNum: number, bracketNum: number, isPlayerA: boolean) => {
+    if (roundNum === 1) return true;
+    const prevRoundName = `Round ${roundNum - 1}`;
+    const prevBracket = isPlayerA ? bracketNum * 2 - 1 : bracketNum * 2;
+    const prevMatch = findMatchInMem(prevRoundName, prevBracket);
+    return !prevMatch;
+  };
 
-  // If tournament is live/finished, we can auto-complete BYE matches.
-  // If it's upcoming/draft, we keep all matches as UPCOMING and do not auto-complete/propagate BYEs.
-  if (isLiveOrFinished) {
-    if (!match.playerAId && !match.playerBId && isPlayerABye && isPlayerBBye) {
-      // Both slots are empty BYEs
+  const changedMatches = new Set<string>();
+
+  const propagateInMem = (mId: string) => {
+    const curMatch = matches.find(m => m.id === mId);
+    if (!curMatch) return;
+
+    const currentRoundNum = parseInt(curMatch.round.replace("Round ", "")) || 1;
+    const currentBracket = curMatch.bracket;
+
+    let status = curMatch.status;
+    let scoreA = curMatch.scoreA;
+    let scoreB = curMatch.scoreB;
+    let winnerId = curMatch.winnerId;
+    let loserId = curMatch.loserId;
+
+    const isPlayerABye = !curMatch.playerAId && isSlotByeInMem(currentRoundNum, currentBracket, true);
+    const isPlayerBBye = !curMatch.playerBId && isSlotByeInMem(currentRoundNum, currentBracket, false);
+
+    if (isLiveOrFinished) {
+      if (!curMatch.playerAId && !curMatch.playerBId && isPlayerABye && isPlayerBBye) {
+        status = "UPCOMING";
+        scoreA = null;
+        scoreB = null;
+        winnerId = null;
+        loserId = null;
+      } else if (curMatch.playerAId && isPlayerBBye) {
+        status = "COMPLETED";
+        scoreA = 0;
+        scoreB = 0;
+        winnerId = curMatch.playerAId;
+        loserId = null;
+      } else if (isPlayerABye && curMatch.playerBId) {
+        status = "COMPLETED";
+        scoreA = 0;
+        scoreB = 0;
+        winnerId = curMatch.playerBId;
+        loserId = null;
+      } else {
+        if (curMatch.status === "COMPLETED" && curMatch.scoreA !== null && curMatch.scoreB !== null && curMatch.scoreA !== curMatch.scoreB) {
+          status = "COMPLETED";
+          scoreA = curMatch.scoreA;
+          scoreB = curMatch.scoreB;
+          winnerId = scoreA > scoreB ? curMatch.playerAId : curMatch.playerBId;
+          loserId = scoreA > scoreB ? curMatch.playerBId : curMatch.playerAId;
+        } else {
+          status = "UPCOMING";
+          scoreA = null;
+          scoreB = null;
+          winnerId = null;
+          loserId = null;
+        }
+      }
+    } else {
       status = "UPCOMING";
       scoreA = null;
       scoreB = null;
       winnerId = null;
       loserId = null;
-    } else if (match.playerAId && isPlayerBBye) {
-      // Player A is present, Player B is a BYE
-      status = "COMPLETED";
-      scoreA = 0;
-      scoreB = 0;
-      winnerId = match.playerAId;
+    }
+
+    if (
+      curMatch.status !== status ||
+      curMatch.scoreA !== scoreA ||
+      curMatch.scoreB !== scoreB ||
+      curMatch.winnerId !== winnerId ||
+      curMatch.loserId !== loserId
+    ) {
+      curMatch.status = status;
+      curMatch.scoreA = scoreA;
+      curMatch.scoreB = scoreB;
+      curMatch.winnerId = winnerId;
+      curMatch.loserId = loserId;
+      changedMatches.add(curMatch.id);
+    }
+
+    const nextRoundNum = currentRoundNum + 1;
+    const nextBracket = Math.ceil(currentBracket / 2);
+    const isOddBracket = currentBracket % 2 !== 0;
+    const nextMatch = findMatchInMem(`Round ${nextRoundNum}`, nextBracket);
+
+    if (nextMatch) {
+      const winnerPlayer = winnerId ? players.find(p => p.id === winnerId) : null;
+      const nextPlayerId = winnerId;
+      const nextPlayerCountry = winnerPlayer?.country || null;
+
+      let nextMatchChanged = false;
+      if (isOddBracket) {
+        if (nextMatch.playerAId !== nextPlayerId || nextMatch.playerACountry !== nextPlayerCountry) {
+          nextMatch.playerAId = nextPlayerId;
+          nextMatch.playerACountry = nextPlayerCountry;
+          nextMatchChanged = true;
+        }
+      } else {
+        if (nextMatch.playerBId !== nextPlayerId || nextMatch.playerBCountry !== nextPlayerCountry) {
+          nextMatch.playerBId = nextPlayerId;
+          nextMatch.playerBCountry = nextPlayerCountry;
+          nextMatchChanged = true;
+        }
+      }
+
+      if (nextMatchChanged) {
+        changedMatches.add(nextMatch.id);
+      }
+
+      propagateInMem(nextMatch.id);
+    }
+  };
+
+  // Run in-memory propagation starting at targetMatch
+  propagateInMem(targetMatch.id);
+
+  // Write changes to db in a single batch transaction
+  if (changedMatches.size > 0) {
+    const updatePromises = Array.from(changedMatches).map(id => {
+      const m = matches.find(match => match.id === id)!;
+      return prisma.match.update({
+        where: { id },
+        data: {
+          playerAId: m.playerAId,
+          playerACountry: m.playerACountry,
+          playerBId: m.playerBId,
+          playerBCountry: m.playerBCountry,
+          status: m.status,
+          scoreA: m.scoreA,
+          scoreB: m.scoreB,
+          winnerId: m.winnerId,
+          loserId: m.loserId
+        }
+      });
+    });
+    await prisma.$transaction(updatePromises);
+  }
+}
+
+async function completeTournamentByes(tournamentId: string) {
+  const matches = await prisma.match.findMany({
+    where: { tournamentId, isArchived: false }
+  });
+  const players = await prisma.player.findMany();
+
+  const findMatchInMem = (roundName: string, bracketNum: number) => {
+    return matches.find(m => m.round === roundName && m.bracket === bracketNum);
+  };
+
+  const isSlotByeInMem = (roundNum: number, bracketNum: number, isPlayerA: boolean) => {
+    if (roundNum === 1) return true;
+    const prevRoundName = `Round ${roundNum - 1}`;
+    const prevBracket = isPlayerA ? bracketNum * 2 - 1 : bracketNum * 2;
+    const prevMatch = findMatchInMem(prevRoundName, prevBracket);
+    return !prevMatch;
+  };
+
+  const changedMatches = new Set<string>();
+
+  const propagateInMem = (mId: string) => {
+    const curMatch = matches.find(m => m.id === mId);
+    if (!curMatch) return;
+
+    const currentRoundNum = parseInt(curMatch.round.replace("Round ", "")) || 1;
+    const currentBracket = curMatch.bracket;
+
+    let status = curMatch.status;
+    let scoreA = curMatch.scoreA;
+    let scoreB = curMatch.scoreB;
+    let winnerId = curMatch.winnerId;
+    let loserId = curMatch.loserId;
+
+    const isPlayerABye = !curMatch.playerAId && isSlotByeInMem(currentRoundNum, currentBracket, true);
+    const isPlayerBBye = !curMatch.playerBId && isSlotByeInMem(currentRoundNum, currentBracket, false);
+
+    if (!curMatch.playerAId && !curMatch.playerBId && isPlayerABye && isPlayerBBye) {
+      status = "UPCOMING";
+      scoreA = null;
+      scoreB = null;
+      winnerId = null;
       loserId = null;
-    } else if (isPlayerABye && match.playerBId) {
-      // Player B is present, Player A is a BYE
+    } else if (curMatch.playerAId && isPlayerBBye) {
       status = "COMPLETED";
       scoreA = 0;
       scoreB = 0;
-      winnerId = match.playerBId;
+      winnerId = curMatch.playerAId;
+      loserId = null;
+    } else if (isPlayerABye && curMatch.playerBId) {
+      status = "COMPLETED";
+      scoreA = 0;
+      scoreB = 0;
+      winnerId = curMatch.playerBId;
       loserId = null;
     } else {
-      // Neither slot is a completed BYE (both are players, or one is player and one is TBD, or both are TBD).
-      if (match.status === "COMPLETED" && match.scoreA !== null && match.scoreB !== null && match.scoreA !== match.scoreB) {
+      if (curMatch.status === "COMPLETED" && curMatch.scoreA !== null && curMatch.scoreB !== null && curMatch.scoreA !== curMatch.scoreB) {
         status = "COMPLETED";
-        scoreA = match.scoreA;
-        scoreB = match.scoreB;
-        winnerId = scoreA > scoreB ? match.playerAId : match.playerBId;
-        loserId = scoreA > scoreB ? match.playerBId : match.playerAId;
+        scoreA = curMatch.scoreA;
+        scoreB = curMatch.scoreB;
+        winnerId = scoreA > scoreB ? curMatch.playerAId : curMatch.playerBId;
+        loserId = scoreA > scoreB ? curMatch.playerBId : curMatch.playerAId;
       } else {
         status = "UPCOMING";
         scoreA = null;
@@ -320,66 +470,54 @@ async function propagateMatchChanges(matchId: string) {
         loserId = null;
       }
     }
-  } else {
-    // Upcoming / Draft mode: keep all matches as UPCOMING, reset scores/winners.
-    status = "UPCOMING";
-    scoreA = null;
-    scoreB = null;
-    winnerId = null;
-    loserId = null;
-  }
 
-  // Update this match
-  await prisma.match.update({
-    where: { id: match.id },
-    data: {
-      status,
-      scoreA,
-      scoreB,
-      winnerId,
-      loserId,
+    if (
+      curMatch.status !== status ||
+      curMatch.scoreA !== scoreA ||
+      curMatch.scoreB !== scoreB ||
+      curMatch.winnerId !== winnerId ||
+      curMatch.loserId !== loserId
+    ) {
+      curMatch.status = status;
+      curMatch.scoreA = scoreA;
+      curMatch.scoreB = scoreB;
+      curMatch.winnerId = winnerId;
+      curMatch.loserId = loserId;
+      changedMatches.add(curMatch.id);
     }
-  });
 
-  // Find next round match
-  const nextRoundNum = currentRoundNum + 1;
-  const nextBracket = Math.ceil(currentBracket / 2);
-  const isOddBracket = currentBracket % 2 !== 0;
-  const nextMatchNumber = `ECL-R${nextRoundNum}-${nextBracket}`;
+    const nextRoundNum = currentRoundNum + 1;
+    const nextBracket = Math.ceil(currentBracket / 2);
+    const isOddBracket = currentBracket % 2 !== 0;
+    const nextMatch = findMatchInMem(`Round ${nextRoundNum}`, nextBracket);
 
-  const nextMatch = await prisma.match.findFirst({
-    where: {
-      matchNumber: nextMatchNumber,
-      tournamentId: match.tournamentId,
-      isArchived: false
-    }
-  });
+    if (nextMatch) {
+      const winnerPlayer = winnerId ? players.find(p => p.id === winnerId) : null;
+      const nextPlayerId = winnerId;
+      const nextPlayerCountry = winnerPlayer?.country || null;
 
-  if (nextMatch) {
-    // Fetch details for next player
-    const winnerPlayer = winnerId ? await prisma.player.findUnique({ where: { id: winnerId } }) : null;
-
-    // Update next match's corresponding slot
-    await prisma.match.update({
-      where: { id: nextMatch.id },
-      data: {
-        playerAId: isOddBracket ? winnerId : nextMatch.playerAId,
-        playerACountry: isOddBracket ? (winnerPlayer?.country || null) : nextMatch.playerACountry,
-        playerBId: !isOddBracket ? winnerId : nextMatch.playerBId,
-        playerBCountry: !isOddBracket ? (winnerPlayer?.country || null) : nextMatch.playerBCountry,
+      let nextMatchChanged = false;
+      if (isOddBracket) {
+        if (nextMatch.playerAId !== nextPlayerId || nextMatch.playerACountry !== nextPlayerCountry) {
+          nextMatch.playerAId = nextPlayerId;
+          nextMatch.playerACountry = nextPlayerCountry;
+          nextMatchChanged = true;
+        }
+      } else {
+        if (nextMatch.playerBId !== nextPlayerId || nextMatch.playerBCountry !== nextPlayerCountry) {
+          nextMatch.playerBId = nextPlayerId;
+          nextMatch.playerBCountry = nextPlayerCountry;
+          nextMatchChanged = true;
+        }
       }
-    });
 
-    // Recursively propagate
-    await propagateMatchChanges(nextMatch.id);
-  }
-}
+      if (nextMatchChanged) {
+        changedMatches.add(nextMatch.id);
+      }
 
-async function completeTournamentByes(tournamentId: string) {
-  const matches = await prisma.match.findMany({
-    where: { tournamentId, isArchived: false },
-    orderBy: { id: 'asc' }
-  });
+      propagateInMem(nextMatch.id);
+    }
+  };
 
   const roundMap = new Map<string, any[]>();
   matches.forEach(m => {
@@ -394,48 +532,56 @@ async function completeTournamentByes(tournamentId: string) {
   for (const roundName of sortedRounds) {
     const roundMatches = roundMap.get(roundName)!;
     for (const match of roundMatches) {
-      const currentMatch = await prisma.match.findUnique({
-        where: { id: match.id }
-      });
-      if (!currentMatch) continue;
+      const currentRoundNum = parseInt(match.round.replace("Round ", "")) || 1;
+      const currentBracket = match.bracket;
 
-      const currentRoundNum = parseInt(currentMatch.round.replace("Round ", "")) || 1;
-      const currentBracket = currentMatch.bracket;
+      const isPlayerABye = !match.playerAId && isSlotByeInMem(currentRoundNum, currentBracket, true);
+      const isPlayerBBye = !match.playerBId && isSlotByeInMem(currentRoundNum, currentBracket, false);
 
-      const isPlayerABye = !currentMatch.playerAId && await isSlotBye(currentRoundNum, currentBracket, true, currentMatch.tournamentId);
-      const isPlayerBBye = !currentMatch.playerBId && await isSlotBye(currentRoundNum, currentBracket, false, currentMatch.tournamentId);
-
-      if (currentMatch.playerAId && isPlayerBBye) {
-        await prisma.match.update({
-          where: { id: currentMatch.id },
-          data: {
-            status: "COMPLETED",
-            scoreA: 0,
-            scoreB: 0,
-            winnerId: currentMatch.playerAId,
-            loserId: null
-          }
-        });
-        await propagateMatchChanges(currentMatch.id);
-      } else if (isPlayerABye && currentMatch.playerBId) {
-        await prisma.match.update({
-          where: { id: currentMatch.id },
-          data: {
-            status: "COMPLETED",
-            scoreA: 0,
-            scoreB: 0,
-            winnerId: currentMatch.playerBId,
-            loserId: null
-          }
-        });
-        await propagateMatchChanges(currentMatch.id);
+      if (match.playerAId && isPlayerBBye) {
+        match.status = "COMPLETED";
+        match.scoreA = 0;
+        match.scoreB = 0;
+        match.winnerId = match.playerAId;
+        match.loserId = null;
+        changedMatches.add(match.id);
+        propagateInMem(match.id);
+      } else if (isPlayerABye && match.playerBId) {
+        match.status = "COMPLETED";
+        match.scoreA = 0;
+        match.scoreB = 0;
+        match.winnerId = match.playerBId;
+        match.loserId = null;
+        changedMatches.add(match.id);
+        propagateInMem(match.id);
       }
     }
+  }
+
+  if (changedMatches.size > 0) {
+    const updatePromises = Array.from(changedMatches).map(id => {
+      const m = matches.find(match => match.id === id)!;
+      return prisma.match.update({
+        where: { id },
+        data: {
+          playerAId: m.playerAId,
+          playerACountry: m.playerACountry,
+          playerBId: m.playerBId,
+          playerBCountry: m.playerBCountry,
+          status: m.status,
+          scoreA: m.scoreA,
+          scoreB: m.scoreB,
+          winnerId: m.winnerId,
+          loserId: m.loserId
+        }
+      });
+    });
+    await prisma.$transaction(updatePromises);
   }
 }
 
 export async function updateMatchScore(matchId: string, scoreA: number, scoreB: number) {
-  const match = await prisma.match.findUnique({ where: { id: matchId }, include: { playerA: true, playerB: true } });
+  const match = await prisma.match.findUnique({ where: { id: matchId } });
   if (!match) return;
 
   const winnerId = scoreA > scoreB ? match.playerAId : scoreB > scoreA ? match.playerBId : null;
@@ -452,7 +598,6 @@ export async function updateMatchScore(matchId: string, scoreA: number, scoreB: 
     },
   });
 
-  // Call the propagation helper to update next rounds recursively
   await propagateMatchChanges(matchId);
 
   revalidatePath("/admin");
