@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toggleRegistration, generateBracket, updateMatchScore, setTournamentStatus, archiveTournament, updateAvailableCountries, startDrawing, finishDrawing, forceResetDrawing, resetDatabase, deletePlayer, addPlayerManually, updatePlayer, logoutAdmin, updateMatchPlayers, destroyTournament, uploadPlayerPhoto } from "@/app/actions";
 
 // Helper to convert country name to 2-letter ISO code for flagcdn
@@ -56,6 +57,7 @@ const compressImage = (file: File, maxWidth = 300, maxHeight = 300): Promise<Fil
 };
 
 export default function AdminPanel({ settings, players, matches }: any) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"GENERAL" | "DRAWING" | "DATABASE">("GENERAL");
   const [isGenerating, setIsGenerating] = useState(false);
   const [selectedBracketSize, setSelectedBracketSize] = useState<string>("auto");
@@ -75,12 +77,14 @@ export default function AdminPanel({ settings, players, matches }: any) {
 
   const handleToggle = async () => {
     await toggleRegistration();
+    router.refresh();
   };
 
   const handleGenerate = async () => {
     if (confirm("Are you sure? This will delete the current bracket and draft a new one.")) {
       setIsGenerating(true);
       await generateBracket(selectedBracketSize === "auto" ? undefined : Number(selectedBracketSize));
+      router.refresh();
       setIsGenerating(false);
     }
   };
