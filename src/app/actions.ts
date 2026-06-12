@@ -73,6 +73,10 @@ export async function setTournamentStatus(newStatus: string) {
     data: { tournamentStatus: newStatus },
   });
 
+  if (newStatus === "LIVE") {
+    await completeTournamentByes(settings.currentTournamentId);
+  }
+
   revalidatePath("/admin");
   revalidatePath("/");
 }
@@ -180,17 +184,33 @@ export async function generateBracket(customSize?: number) {
           continue; // Do not create a match if both are BYEs and in auto mode
         }
       } else if (pA !== "BYE" && pB === "BYE") {
-        winnerId = actualPA;
-        status = "COMPLETED";
-        scoreA = 0;
-        scoreB = 0;
-        nextRoundSlots.push(actualPA);
+        if (customSize) {
+          nextRoundSlots.push("TBD");
+          winnerId = null;
+          status = "UPCOMING";
+          scoreA = null;
+          scoreB = null;
+        } else {
+          winnerId = actualPA;
+          status = "COMPLETED";
+          scoreA = 0;
+          scoreB = 0;
+          nextRoundSlots.push(actualPA);
+        }
       } else if (pA === "BYE" && pB !== "BYE") {
-        winnerId = actualPB;
-        status = "COMPLETED";
-        scoreA = 0;
-        scoreB = 0;
-        nextRoundSlots.push(actualPB);
+        if (customSize) {
+          nextRoundSlots.push("TBD");
+          winnerId = null;
+          status = "UPCOMING";
+          scoreA = null;
+          scoreB = null;
+        } else {
+          winnerId = actualPB;
+          status = "COMPLETED";
+          scoreA = 0;
+          scoreB = 0;
+          nextRoundSlots.push(actualPB);
+        }
       } else {
         nextRoundSlots.push("TBD");
       }
@@ -244,6 +264,9 @@ async function propagateMatchChanges(matchId: string) {
   });
   if (!match) return;
 
+  const settings = await prisma.systemSettings.findFirst();
+  const isLiveOrFinished = settings?.tournamentStatus === "LIVE" || settings?.tournamentStatus === "FINISHED";
+
   const currentRoundNum = parseInt(match.round.replace("Round ", "")) || 1;
   const currentBracket = match.bracket;
 
@@ -257,44 +280,53 @@ async function propagateMatchChanges(matchId: string) {
   const isPlayerABye = !match.playerAId && await isSlotBye(currentRoundNum, currentBracket, true, match.tournamentId);
   const isPlayerBBye = !match.playerBId && await isSlotBye(currentRoundNum, currentBracket, false, match.tournamentId);
 
-  if (!match.playerAId && !match.playerBId && isPlayerABye && isPlayerBBye) {
-    // Both slots are empty BYEs
-    status = "UPCOMING";
-    scoreA = null;
-    scoreB = null;
-    winnerId = null;
-    loserId = null;
-  } else if (match.playerAId && isPlayerBBye) {
-    // Player A is present, Player B is a BYE
-    status = "COMPLETED";
-    scoreA = 0;
-    scoreB = 0;
-    winnerId = match.playerAId;
-    loserId = null;
-  } else if (isPlayerABye && match.playerBId) {
-    // Player B is present, Player A is a BYE
-    status = "COMPLETED";
-    scoreA = 0;
-    scoreB = 0;
-    winnerId = match.playerBId;
-    loserId = null;
-  } else {
-    // Neither slot is a completed BYE (both are players, or one is player and one is TBD, or both are TBD).
-    // If it was already completed with actual scores (e.g. from updateMatchScore), keep it as completed.
-    // Otherwise, it is UPCOMING and scores/winner should be reset/null.
-    if (match.status === "COMPLETED" && match.scoreA !== null && match.scoreB !== null && match.scoreA !== match.scoreB) {
-      status = "COMPLETED";
-      scoreA = match.scoreA;
-      scoreB = match.scoreB;
-      winnerId = scoreA > scoreB ? match.playerAId : match.playerBId;
-      loserId = scoreA > scoreB ? match.playerBId : match.playerAId;
-    } else {
+  // If tournament is live/finished, we can auto-complete BYE matches.
+  // If it's upcoming/draft, we keep all matches as UPCOMING and do not auto-complete/propagate BYEs.
+  if (isLiveOrFinished) {
+    if (!match.playerAId && !match.playerBId && isPlayerABye && isPlayerBBye) {
+      // Both slots are empty BYEs
       status = "UPCOMING";
       scoreA = null;
       scoreB = null;
       winnerId = null;
       loserId = null;
+    } else if (match.playerAId && isPlayerBBye) {
+      // Player A is present, Player B is a BYE
+      status = "COMPLETED";
+      scoreA = 0;
+      scoreB = 0;
+      winnerId = match.playerAId;
+      loserId = null;
+    } else if (isPlayerABye && match.playerBId) {
+      // Player B is present, Player A is a BYE
+      status = "COMPLETED";
+      scoreA = 0;
+      scoreB = 0;
+      winnerId = match.playerBId;
+      loserId = null;
+    } else {
+      // Neither slot is a completed BYE (both are players, or one is player and one is TBD, or both are TBD).
+      if (match.status === "COMPLETED" && match.scoreA !== null && match.scoreB !== null && match.scoreA !== match.scoreB) {
+        status = "COMPLETED";
+        scoreA = match.scoreA;
+        scoreB = match.scoreB;
+        winnerId = scoreA > scoreB ? match.playerAId : match.playerBId;
+        loserId = scoreA > scoreB ? match.playerBId : match.playerAId;
+      } else {
+        status = "UPCOMING";
+        scoreA = null;
+        scoreB = null;
+        winnerId = null;
+        loserId = null;
+      }
     }
+  } else {
+    // Upcoming / Draft mode: keep all matches as UPCOMING, reset scores/winners.
+    status = "UPCOMING";
+    scoreA = null;
+    scoreB = null;
+    winnerId = null;
+    loserId = null;
   }
 
   // Update this match
@@ -340,6 +372,65 @@ async function propagateMatchChanges(matchId: string) {
 
     // Recursively propagate
     await propagateMatchChanges(nextMatch.id);
+  }
+}
+
+async function completeTournamentByes(tournamentId: string) {
+  const matches = await prisma.match.findMany({
+    where: { tournamentId, isArchived: false },
+    orderBy: { id: 'asc' }
+  });
+
+  const roundMap = new Map<string, any[]>();
+  matches.forEach(m => {
+    if (!roundMap.has(m.round)) roundMap.set(m.round, []);
+    roundMap.get(m.round)!.push(m);
+  });
+
+  const sortedRounds = Array.from(roundMap.keys()).sort((a, b) => {
+    return parseInt(a.replace("Round ", "")) - parseInt(b.replace("Round ", ""));
+  });
+
+  for (const roundName of sortedRounds) {
+    const roundMatches = roundMap.get(roundName)!;
+    for (const match of roundMatches) {
+      const currentMatch = await prisma.match.findUnique({
+        where: { id: match.id }
+      });
+      if (!currentMatch) continue;
+
+      const currentRoundNum = parseInt(currentMatch.round.replace("Round ", "")) || 1;
+      const currentBracket = currentMatch.bracket;
+
+      const isPlayerABye = !currentMatch.playerAId && await isSlotBye(currentRoundNum, currentBracket, true, currentMatch.tournamentId);
+      const isPlayerBBye = !currentMatch.playerBId && await isSlotBye(currentRoundNum, currentBracket, false, currentMatch.tournamentId);
+
+      if (currentMatch.playerAId && isPlayerBBye) {
+        await prisma.match.update({
+          where: { id: currentMatch.id },
+          data: {
+            status: "COMPLETED",
+            scoreA: 0,
+            scoreB: 0,
+            winnerId: currentMatch.playerAId,
+            loserId: null
+          }
+        });
+        await propagateMatchChanges(currentMatch.id);
+      } else if (isPlayerABye && currentMatch.playerBId) {
+        await prisma.match.update({
+          where: { id: currentMatch.id },
+          data: {
+            status: "COMPLETED",
+            scoreA: 0,
+            scoreB: 0,
+            winnerId: currentMatch.playerBId,
+            loserId: null
+          }
+        });
+        await propagateMatchChanges(currentMatch.id);
+      }
+    }
   }
 }
 

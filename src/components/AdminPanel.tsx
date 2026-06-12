@@ -518,7 +518,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                             if (!match) {
                               return (
                                 <div key={`empty-${slotIdx}`} className="flex-1 flex flex-col justify-center relative px-6 py-4">
-                                  <div className="relative z-10 border border-transparent flex flex-col opacity-0 pointer-events-none w-[280px] min-h-[160px]" />
+                                  <div className="relative z-10 border border-transparent flex flex-col opacity-0 pointer-events-none w-[320px] h-[190px] flex-shrink-0" />
                                 </div>
                               );
                             }
@@ -556,9 +556,9 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                 )}
 
                                 {/* Admin Editable Match Card */}
-                                <div className="relative z-10 bg-brand-light/10 border border-brand-neon/40 flex flex-col sharp-clip transition-transform hover:scale-[1.02] duration-300 shadow-xl w-[320px] min-h-[160px]">
+                                <div className="relative z-10 bg-brand-light/10 border border-brand-neon/40 flex flex-col sharp-clip transition-transform hover:scale-[1.02] duration-300 shadow-xl w-[320px] h-[190px] flex-shrink-0">
                                   {/* Match Header */}
-                                  <div className="bg-brand-dark px-3 py-1.5 flex justify-between items-center border-b border-brand-neon/20">
+                                  <div className="bg-brand-dark px-3 py-1.5 flex justify-between items-center border-b border-brand-neon/20 h-[30px] flex-shrink-0">
                                     <span className="text-[10px] font-bold text-gray-400 uppercase">{displayMatchNumber}</span>
                                     <span className={`text-[10px] font-bold px-1.5 py-0.5 uppercase rounded ${
                                       match.status === 'LIVE' ? 'bg-red-500/20 text-red-500' :
@@ -569,8 +569,8 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                     </span>
                                   </div>
                                   
-                                  <form onSubmit={(e) => handleScoreUpdate(e, match.id)} className="flex flex-col">
-                                    <div className="flex justify-between items-stretch">
+                                  <form onSubmit={(e) => handleScoreUpdate(e, match.id)} className="flex flex-col flex-grow justify-between min-h-0">
+                                    <div className="flex justify-between items-stretch flex-grow">
                                       {/* Players Column */}
                                       <div className="flex flex-col justify-center flex-grow p-3 space-y-2 min-w-0">
                                         {/* Player A */}
