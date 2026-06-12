@@ -784,13 +784,23 @@ export default function AdminPanel({ settings, players, matches }: any) {
                 {tbdPlayers.map((p: any) => (
                   <div key={p.id} className={`bg-black/40 border p-4 flex justify-between items-center transition-colors group ${p.id === spinningPlayerId ? 'border-brand-neon/50 bg-brand-neon/10 animate-pulse shadow-[0_0_20px_rgba(176,251,11,0.2)]' : 'border-gray-700/50 hover:border-brand-neon/50'}`}>
                     <span className={`font-bold uppercase transition-colors ${p.id === spinningPlayerId ? 'text-brand-neon' : 'text-gray-300 group-hover:text-white'}`}>{p.name}</span>
-                    <button 
-                      onClick={() => handleStartDrawing(p)}
-                      disabled={settings?.isDrawingLive || !!spinningPlayerId}
-                      className="bg-brand-neon/20 hover:bg-brand-neon text-brand-neon hover:text-brand-dark px-6 py-2 font-bold sharp-clip uppercase transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed border border-brand-neon/50"
-                    >
-                      {p.id === spinningPlayerId ? "Drawing..." : "Spin"}
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button 
+                        onClick={() => handleDeletePlayer(p.id, p.name)}
+                        disabled={!!spinningPlayerId}
+                        className="bg-red-600/20 hover:bg-red-600 text-red-500 hover:text-white border border-red-600/40 p-2 font-bold sharp-clip uppercase text-xs transition-colors cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+                        title="Hapus Pemain"
+                      >
+                        🗑️
+                      </button>
+                      <button 
+                        onClick={() => handleStartDrawing(p)}
+                        disabled={settings?.isDrawingLive || !!spinningPlayerId}
+                        className="bg-brand-neon/20 hover:bg-brand-neon text-brand-neon hover:text-brand-dark px-6 py-2 font-bold sharp-clip uppercase transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed border border-brand-neon/50"
+                      >
+                        {p.id === spinningPlayerId ? "Drawing..." : "Spin"}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
