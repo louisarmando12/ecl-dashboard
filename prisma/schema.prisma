@@ -69,6 +69,7 @@ model SystemSettings {
   availableCountries        String   @default("[]") // JSON array of available countries
   defaultAvailableCountries String   @default("[]") // JSON array of initial countries to restore on archive
   logoUrls                  String   @default("{}") // JSON map of country slug to Blob URL
+  bracketType               String   @default("auto") // "auto", "8", "16", "32"
   
   // New fields for Drawing state
   isDrawingLive             Boolean  @default(false)

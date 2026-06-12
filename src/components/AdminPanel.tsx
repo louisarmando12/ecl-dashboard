@@ -499,10 +499,11 @@ export default function AdminPanel({ settings, players, matches }: any) {
                     return sortedRounds.map((roundName, rIdx) => {
                       const roundMatches = roundMap.get(roundName)!;
                       const expectedSlots = Math.pow(2, sortedRounds.length - rIdx - 1);
+                      const hideBye = !settings?.bracketType || settings.bracketType === "auto";
                       const slots = Array.from({ length: expectedSlots }, (_, i) => {
                         const m = roundMatches.find(m => m.bracket === i + 1) || null;
-                        // Hide BYE matches from the visual bracket
-                        if (m && m.status === "COMPLETED" && !m.playerBId) return null;
+                        // Hide BYE matches from the visual bracket only in auto mode
+                        if (hideBye && m && m.status === "COMPLETED" && !m.playerBId) return null;
                         return m;
                       });
 
@@ -531,8 +532,8 @@ export default function AdminPanel({ settings, players, matches }: any) {
                               const child1 = prevRoundMatches.find(m => m.bracket === slotIdx * 2 + 1);
                               const child2 = prevRoundMatches.find(m => m.bracket === slotIdx * 2 + 2);
                               
-                              child1Visible = !!(child1 && !(child1.status === "COMPLETED" && !child1.playerBId));
-                              child2Visible = !!(child2 && !(child2.status === "COMPLETED" && !child2.playerBId));
+                              child1Visible = !!(child1 && !(hideBye && child1.status === "COMPLETED" && !child1.playerBId));
+                              child2Visible = !!(child2 && !(hideBye && child2.status === "COMPLETED" && !child2.playerBId));
                               
                               hasIncoming = !!(child1Visible || child2Visible);
                             }
@@ -583,7 +584,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                             />
                                           )}
                                           <div className="flex flex-col flex-grow min-w-0">
-                                            {match.status === "COMPLETED" ? (
+                                            {match.status === "COMPLETED" && match.playerAId && match.playerBId ? (
                                               <>
                                                 <div className="text-sm font-bold uppercase truncate w-32" title={match.playerA?.name || "TBD"}>
                                                   {!match.playerAId ? "BYE" : match.playerA?.name || "TBD"}
@@ -623,7 +624,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                             />
                                           )}
                                           <div className="flex flex-col flex-grow min-w-0">
-                                            {match.status === "COMPLETED" ? (
+                                            {match.status === "COMPLETED" && match.playerAId && match.playerBId ? (
                                               <>
                                                 <div className="text-sm font-bold uppercase truncate w-32" title={match.playerB?.name || "TBD"}>
                                                   {!match.playerBId ? "BYE" : match.playerB?.name || "TBD"}

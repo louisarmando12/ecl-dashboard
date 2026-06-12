@@ -172,9 +172,10 @@ export default function TournamentHub({ matches, settings }: { matches: any[], s
                         return sortedRounds.map((roundName, rIdx) => {
                           const roundMatches = roundMap.get(roundName)!;
                           const expectedSlots = Math.pow(2, sortedRounds.length - rIdx - 1);
+                          const hideBye = !settings?.bracketType || settings.bracketType === "auto";
                           const slots = Array.from({ length: expectedSlots }, (_, i) => {
                             const m = roundMatches.find(m => m.bracket === i + 1) || null;
-                            if (m && m.status === "COMPLETED" && !m.playerBId) return null;
+                            if (hideBye && m && m.status === "COMPLETED" && !m.playerBId) return null;
                             return m;
                           });
 
@@ -195,8 +196,8 @@ export default function TournamentHub({ matches, settings }: { matches: any[], s
                                   const child1 = prevRoundMatches.find(m => m.bracket === slotIdx * 2 + 1);
                                   const child2 = prevRoundMatches.find(m => m.bracket === slotIdx * 2 + 2);
                                   
-                                  child1Visible = !!(child1 && !(child1.status === "COMPLETED" && !child1.playerBId));
-                                  child2Visible = !!(child2 && !(child2.status === "COMPLETED" && !child2.playerBId));
+                                  child1Visible = !!(child1 && !(hideBye && child1.status === "COMPLETED" && !child1.playerBId));
+                                  child2Visible = !!(child2 && !(hideBye && child2.status === "COMPLETED" && !child2.playerBId));
                                   
                                   hasIncoming = !!(child1Visible || child2Visible);
                                 }
