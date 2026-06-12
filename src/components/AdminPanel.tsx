@@ -597,6 +597,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                                 onChange={async (e) => {
                                                   const val = e.target.value || null;
                                                   await updateMatchPlayers(match.id, val, match.playerBId);
+                                                  router.refresh();
                                                 }}
                                                 className="bg-black/60 border border-brand-neon/30 text-white text-xs font-bold p-1 rounded focus:outline-none focus:border-brand-neon w-full min-w-0"
                                               >
@@ -637,6 +638,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                                 onChange={async (e) => {
                                                   const val = e.target.value || null;
                                                   await updateMatchPlayers(match.id, match.playerAId, val);
+                                                  router.refresh();
                                                 }}
                                                 className="bg-black/60 border border-brand-neon/30 text-white text-xs font-bold p-1 rounded focus:outline-none focus:border-brand-neon w-full min-w-0"
                                               >
