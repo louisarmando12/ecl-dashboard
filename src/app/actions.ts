@@ -108,7 +108,7 @@ export async function archiveTournament() {
   revalidatePath("/");
 }
 
-export async function generateBracket() {
+export async function generateBracket(customSize?: number) {
   const settings = await prisma.systemSettings.findFirst() || await prisma.systemSettings.create({ data: {} });
   
   const players = await prisma.player.findMany({
@@ -123,7 +123,7 @@ export async function generateBracket() {
   });
 
   const N = shuffled.length;
-  const P = Math.pow(2, Math.ceil(Math.log2(N)));
+  const P = customSize || Math.pow(2, Math.ceil(Math.log2(N)));
   
   // Fill initial slots with BYEs
   let currentRoundSlots = new Array(P).fill("BYE");
@@ -287,7 +287,7 @@ export async function getLeaderboard() {
   const playerTourneyPoints: Record<string, number> = {};
 
   for (const [tId, matches] of Object.entries(tournamentMatches)) {
-    const trueMaxRound = Math.max(...matches.map(m => parseInt(m.round.replace("Round ", "")) || 1));
+    const trueMaxRound = Math.max(...matches.map(m => parseInt(m.round.replace("Round ", "")) || 1), 1);
     
     const participantIds = new Set<string>();
     matches.forEach(m => {
@@ -295,7 +295,83 @@ export async function getLeaderboard() {
       if (m.playerBId && m.playerBId !== "BYE" && m.playerBId !== "TBD") participantIds.add(m.playerBId);
     });
 
-    participantIds.forEach(pId => {
+    const processedPlayersInTourney = new Set<string>();
+    const round1Matches = matches.filter(m => m.round === "Round 1");
+
+    round1Matches.forEach(r1Match => {
+      const slots = [
+        { playerId: r1Match.playerAId, initialMatch: r1Match },
+        { playerId: r1Match.playerBId, initialMatch: r1Match }
+      ];
+
+      slots.forEach(slot => {
+        const pId = slot.playerId;
+        if (!pId || pId === "BYE" || pId === "TBD") return;
+
+        processedPlayersInTourney.add(pId);
+
+        let currentMatch = slot.initialMatch;
+        let pointsForSlot = 0;
+
+        while (true) {
+          const currentRound = parseInt(currentMatch.round.replace("Round ", "")) || 1;
+          const currentBracket = currentMatch.bracket;
+
+          if (currentMatch.status === "COMPLETED") {
+            if (currentMatch.winnerId === pId) {
+              if (currentRound === trueMaxRound) {
+                pointsForSlot = 10; // Won the finals
+                break;
+              } else {
+                const nextRound = currentRound + 1;
+                const nextBracket = Math.ceil(currentBracket / 2);
+                const nextMatch = matches.find(m => 
+                  m.round === `Round ${nextRound}` && m.bracket === nextBracket
+                );
+                if (nextMatch) {
+                  currentMatch = nextMatch;
+                } else {
+                  // No next match created yet, treat as active in current round
+                  if (currentRound === trueMaxRound) pointsForSlot = 7;
+                  else if (currentRound === trueMaxRound - 1) pointsForSlot = 7;
+                  else if (currentRound === trueMaxRound - 2) pointsForSlot = 4;
+                  else if (currentRound === trueMaxRound - 3) pointsForSlot = 2;
+                  else pointsForSlot = 1;
+                  break;
+                }
+              }
+            } else if (currentMatch.loserId === pId) {
+              // Lost in this round
+              if (currentRound === trueMaxRound) pointsForSlot = 7;
+              else if (currentRound === trueMaxRound - 1) pointsForSlot = 4;
+              else if (currentRound === trueMaxRound - 2) pointsForSlot = 2;
+              else pointsForSlot = 1;
+              break;
+            } else {
+              // Fallback
+              if (currentRound === trueMaxRound) pointsForSlot = 7;
+              else if (currentRound === trueMaxRound - 1) pointsForSlot = 4;
+              else if (currentRound === trueMaxRound - 2) pointsForSlot = 2;
+              else pointsForSlot = 1;
+              break;
+            }
+          } else {
+            // Match is UPCOMING, active in this round
+            if (currentRound === trueMaxRound) pointsForSlot = 7;
+            else if (currentRound === trueMaxRound - 1) pointsForSlot = 4;
+            else if (currentRound === trueMaxRound - 2) pointsForSlot = 2;
+            else pointsForSlot = 1;
+            break;
+          }
+        }
+
+        playerTourneyPoints[pId] = (playerTourneyPoints[pId] || 0) + pointsForSlot;
+      });
+    });
+
+    // Fallback for players who were manually inserted/moved in later rounds and have no Round 1 slot
+    const unpaidPlayers = [...participantIds].filter(pId => !processedPlayersInTourney.has(pId));
+    unpaidPlayers.forEach(pId => {
       const lossMatch = matches.find(m => m.loserId === pId);
       const finalWin = matches.find(m => m.winnerId === pId && parseInt(m.round.replace("Round ", "")) === trueMaxRound);
 
@@ -318,7 +394,6 @@ export async function getLeaderboard() {
         else if (highestRound === trueMaxRound - 2) points = 2;
         else points = 1;
       }
-
       playerTourneyPoints[pId] = (playerTourneyPoints[pId] || 0) + points;
     });
   }

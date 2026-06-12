@@ -58,6 +58,7 @@ const compressImage = (file: File, maxWidth = 300, maxHeight = 300): Promise<Fil
 export default function AdminPanel({ settings, players, matches }: any) {
   const [activeTab, setActiveTab] = useState<"GENERAL" | "DRAWING" | "DATABASE">("GENERAL");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [selectedBracketSize, setSelectedBracketSize] = useState<string>("auto");
   const [isDownloading, setIsDownloading] = useState(false);
   const [countriesInput, setCountriesInput] = useState(() => {
     try {
@@ -78,7 +79,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
   const handleGenerate = async () => {
     if (confirm("Are you sure? This will delete the current bracket and draft a new one.")) {
       setIsGenerating(true);
-      await generateBracket();
+      await generateBracket(selectedBracketSize === "auto" ? undefined : Number(selectedBracketSize));
       setIsGenerating(false);
     }
   };
@@ -388,9 +389,24 @@ export default function AdminPanel({ settings, players, matches }: any) {
                 </div>
                 <p className="text-xs text-gray-400 flex-grow mb-6">Complete Team Drawing, then generate the bracket.</p>
                 {!settings?.registrationOpen && matches.length === 0 && (
-                  <button onClick={handleGenerate} disabled={isGenerating} className="w-full bg-brand-orange hover:bg-orange-400 text-brand-dark font-black text-sm px-4 py-3 uppercase tracking-wider sharp-clip transition-colors disabled:opacity-50">
-                    {isGenerating ? "Generating..." : "Generate Bracket"}
-                  </button>
+                  <div className="space-y-4 w-full">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase text-gray-400 mb-1">Ukuran Bracket</label>
+                      <select 
+                        value={selectedBracketSize} 
+                        onChange={(e) => setSelectedBracketSize(e.target.value)}
+                        className="w-full bg-black/40 border border-brand-neon/30 text-white p-2.5 focus:outline-none focus:border-brand-neon transition-all text-xs font-bold uppercase cursor-pointer"
+                      >
+                        <option value="auto" className="bg-brand-dark text-white">Auto (Sesuai Jumlah Pemain)</option>
+                        <option value="8" className="bg-brand-dark text-white">8 Besar (Quarterfinals)</option>
+                        <option value="16" className="bg-brand-dark text-white">16 Besar (Round of 16)</option>
+                        <option value="32" className="bg-brand-dark text-white">32 Besar (Round of 32)</option>
+                      </select>
+                    </div>
+                    <button onClick={handleGenerate} disabled={isGenerating} className="w-full bg-brand-orange hover:bg-orange-400 text-brand-dark font-black text-sm px-4 py-3 uppercase tracking-wider sharp-clip transition-colors disabled:opacity-50 cursor-pointer">
+                      {isGenerating ? "Generating..." : "Generate Bracket"}
+                    </button>
+                  </div>
                 )}
               </div>
 
