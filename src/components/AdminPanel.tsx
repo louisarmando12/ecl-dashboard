@@ -555,7 +555,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                 )}
 
                                 {/* Admin Editable Match Card */}
-                                <div className="relative z-10 bg-brand-light/10 border border-brand-neon/40 flex flex-col sharp-clip transition-transform hover:scale-[1.02] duration-300 shadow-xl w-[280px] min-h-[160px]">
+                                <div className="relative z-10 bg-brand-light/10 border border-brand-neon/40 flex flex-col sharp-clip transition-transform hover:scale-[1.02] duration-300 shadow-xl w-[320px] min-h-[160px]">
                                   {/* Match Header */}
                                   <div className="bg-brand-dark px-3 py-1.5 flex justify-between items-center border-b border-brand-neon/20">
                                     <span className="text-[10px] font-bold text-gray-400 uppercase">{displayMatchNumber}</span>
@@ -571,17 +571,18 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                   <form onSubmit={(e) => handleScoreUpdate(e, match.id)} className="flex flex-col">
                                     <div className="flex justify-between items-stretch">
                                       {/* Players Column */}
-                                      <div className="flex flex-col justify-center flex-grow p-3 space-y-2">
+                                      <div className="flex flex-col justify-center flex-grow p-3 space-y-2 min-w-0">
                                         {/* Player A */}
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-2 min-w-0">
                                           {match.playerA?.country && match.playerA?.country !== "TBD" && (
                                             <img 
                                               src={`/api/logo?team=${encodeURIComponent(match.playerA.country)}`} 
                                               alt={match.playerA.country} 
-                                              className="w-6 h-6 object-contain"
+                                              className="w-5 h-5 object-contain flex-shrink-0"
+                                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                             />
                                           )}
-                                          <div className="flex flex-col flex-grow">
+                                          <div className="flex flex-col flex-grow min-w-0">
                                             {match.status === "COMPLETED" ? (
                                               <>
                                                 <div className="text-sm font-bold uppercase truncate w-32" title={match.playerA?.name || "TBD"}>
@@ -596,7 +597,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                                   const val = e.target.value || null;
                                                   await updateMatchPlayers(match.id, val, match.playerBId);
                                                 }}
-                                                className="bg-black/60 border border-brand-neon/30 text-white text-xs font-bold p-1 rounded focus:outline-none focus:border-brand-neon max-w-[170px]"
+                                                className="bg-black/60 border border-brand-neon/30 text-white text-xs font-bold p-1 rounded focus:outline-none focus:border-brand-neon w-full min-w-0"
                                               >
                                                 <option value="">-- TBD / BYE --</option>
                                                 {players.filter((p: any) => p.isActive).map((p: any) => (
@@ -612,15 +613,16 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                         <div className="w-full h-px bg-gradient-to-r from-transparent via-brand-neon/30 to-transparent my-1" />
                                         
                                         {/* Player B */}
-                                        <div className="flex items-center gap-3">
+                                        <div className="flex items-center gap-2 min-w-0">
                                           {match.playerB?.country && match.playerB?.country !== "TBD" && (
                                             <img 
                                               src={`/api/logo?team=${encodeURIComponent(match.playerB.country)}`} 
                                               alt={match.playerB.country} 
-                                              className="w-6 h-6 object-contain"
+                                              className="w-5 h-5 object-contain flex-shrink-0"
+                                              onError={(e) => { e.currentTarget.style.display = 'none'; }}
                                             />
                                           )}
-                                          <div className="flex flex-col flex-grow">
+                                          <div className="flex flex-col flex-grow min-w-0">
                                             {match.status === "COMPLETED" ? (
                                               <>
                                                 <div className="text-sm font-bold uppercase truncate w-32" title={match.playerB?.name || "TBD"}>
@@ -635,7 +637,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                                                   const val = e.target.value || null;
                                                   await updateMatchPlayers(match.id, match.playerAId, val);
                                                 }}
-                                                className="bg-black/60 border border-brand-neon/30 text-white text-xs font-bold p-1 rounded focus:outline-none focus:border-brand-neon max-w-[170px]"
+                                                className="bg-black/60 border border-brand-neon/30 text-white text-xs font-bold p-1 rounded focus:outline-none focus:border-brand-neon w-full min-w-0"
                                               >
                                                 <option value="">-- TBD / BYE --</option>
                                                 {players.filter((p: any) => p.isActive).map((p: any) => (
