@@ -510,7 +510,7 @@ export default function AdminPanel({ settings, players, matches }: any) {
                       let visibleMatchCounter = 1;
 
                       return (
-                        <div key={roundName} className="flex flex-col w-[320px] shrink-0">
+                        <div key={roundName} className="flex flex-col w-[380px] shrink-0">
                           {slots.map((match, slotIdx) => {
                             const isTop = (slotIdx + 1) % 2 !== 0;
                             const isFinalRound = rIdx === sortedRounds.length - 1;
